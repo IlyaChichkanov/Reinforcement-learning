@@ -223,7 +223,7 @@ def mdp_gridworld():
 
 def course_map():
     blocks = [
-        ("Основы", C_GREY, ["1. Введение, бандиты, MDP", "2. Динамическое\n    программирование",
+        ("Основы", C_GREY, ["1. Введение в RL", "2. Бандиты, MDP,\n    динамическое\n    программирование",
                             "3. Monte Carlo и TD", "4. Аппроксимация\n    функций, TD(λ)"]),
         ("Deep RL", C_AGENT, ["5. Deep Q-Learning", "6. Policy Gradient", "7. TRPO и PPO",
                               "8. DDPG, TD3, SAC"]),
@@ -254,7 +254,56 @@ def course_map():
     plt.close(fig)
 
 
+def rl_origins():
+    """Две ветки, из которых вырос RL: психология обучения и оптимальное управление."""
+    fig, ax = plt.subplots(figsize=(14, 6.2))
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    ax.axis("off")
+
+    # верхняя ветка: психология
+    _box(ax, (0.01, 0.80), 0.2, 0.11, "Психология\nобучения", C_REWARD, fontsize=12.5)
+    psych = [
+        (0.24, "1890-1900-е\nПавлов", "условный рефлекс:\nстимул → реакция"),
+        (0.43, "1898-1911\nТорндайк", "закон эффекта:\nдействие с приятным\nпоследствием повторяется"),
+        (0.62, "1930-50-е\nСкиннер", "оперантное обусловливание,\nтермин «подкрепление»\n(reinforcement)"),
+    ]
+    for x, name, desc in psych:
+        _box(ax, (x, 0.80), 0.16, 0.11, name, C_LIGHT, fontsize=10.5, text_color=C_TEXT)
+        ax.text(x + 0.08, 0.77, desc, ha="center", va="top", fontsize=9, color=C_TEXT)
+    for x0, x1 in ((0.21, 0.24), (0.40, 0.43), (0.59, 0.62)):
+        _arrow(ax, (x0, 0.855), (x1, 0.855), C_GREY, lw=1.5)
+
+    # нижняя ветка: оптимальное управление и ранний ИИ
+    _box(ax, (0.01, 0.30), 0.2, 0.11, "Оптимальное\nуправление и ИИ", C_AGENT, fontsize=12.5)
+    ctrl = [
+        (0.24, "1950-е\nБеллман", "динамическое\nпрограммирование,\nмарковские процессы решений"),
+        (0.43, "1954-61\nМинский", "обучающаяся машина\nSNARC; проблема\ncredit assignment"),
+        (0.62, "1970-80-е\nКлопф, Саттон,\nБарто", "«гедонистические» нейроны,\nactor-critic,\nTD-обучение (1988)"),
+    ]
+    for x, name, desc in ctrl:
+        _box(ax, (x, 0.30), 0.16, 0.11, name, C_LIGHT, fontsize=10.5, text_color=C_TEXT)
+        ax.text(x + 0.08, 0.27, desc, ha="center", va="top", fontsize=9, color=C_TEXT)
+    for x0, x1 in ((0.21, 0.24), (0.40, 0.43), (0.59, 0.62)):
+        _arrow(ax, (x0, 0.355), (x1, 0.355), C_GREY, lw=1.5)
+
+    # слияние
+    _box(ax, (0.82, 0.50), 0.17, 0.16, "Reinforcement\nLearning\n1980-90-е", C_ENV, fontsize=12.5)
+    ax.text(0.99, 0.47, "Q-learning (Уоткинс, 1989),\nTD-Gammon (Тезауро, 1992),\n"
+                         "учебник Саттона и Барто (1998)", ha="right", va="top", fontsize=9, color=C_TEXT)
+    _arrow(ax, (0.78, 0.855), (0.86, 0.67), C_REWARD, rad=-0.2, lw=2.2)
+    _arrow(ax, (0.78, 0.355), (0.815, 0.53), C_AGENT, rad=-0.25, lw=2.2)
+
+    ax.text(0.5, 0.03,
+            "Слово «подкрепление» пришло из психологии; математика (ценность состояния, уравнения Беллмана) — "
+            "из теории управления.\nRL как отдельная область появился, когда эти две линии соединились.",
+            ha="center", va="bottom", fontsize=10, color=C_GREY, style="italic")
+    fig.tight_layout()
+    fig.savefig(OUT / "rl_origins.png", dpi=DPI)
+    plt.close(fig)
+
+
 if __name__ == "__main__":
-    for fn in (agent_env_loop, ml_paradigms, rl_timeline, rl_taxonomy, mdp_gridworld, course_map):
+    for fn in (agent_env_loop, ml_paradigms, rl_timeline, rl_origins, rl_taxonomy, mdp_gridworld, course_map):
         fn()
         print("saved", fn.__name__)
