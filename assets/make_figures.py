@@ -142,25 +142,25 @@ def rl_taxonomy():
     _box(ax, (0.38, 0.86), 0.24, 0.1, "Методы RL", C_TEXT, fontsize=15)
 
     # уровень 1
-    _box(ax, (0.03, 0.62), 0.2, 0.1, "Табличные\n(недели 1-3)", C_GREY, fontsize=11)
+    _box(ax, (0.03, 0.62), 0.2, 0.1, "Табличные\n(недели 1-4)", C_GREY, fontsize=11)
     _box(ax, (0.27, 0.62), 0.28, 0.1, "Model-free deep RL", C_AGENT, fontsize=12)
-    _box(ax, (0.59, 0.62), 0.18, 0.1, "Model-based\n(неделя 9)", C_ENV, fontsize=11)
-    _box(ax, (0.8, 0.62), 0.18, 0.1, "Offline / imitation\n(неделя 11)", C_PURPLE, fontsize=11)
+    _box(ax, (0.59, 0.62), 0.18, 0.1, "Model-based\n(недели 11-12)", C_ENV, fontsize=11)
+    _box(ax, (0.8, 0.62), 0.18, 0.1, "Трансформеры,\noffline (неделя 16)", C_PURPLE, fontsize=11)
     for x in (0.13, 0.41, 0.68, 0.89):
         _arrow(ax, (0.5, 0.86), (x, 0.72), C_GREY, lw=1.5)
 
     # табличные
-    ax.text(0.13, 0.55, "бандиты, DP,\nMonte Carlo, TD,\nSARSA, Q-learning", ha="center", va="top",
+    ax.text(0.13, 0.55, "бандиты, Cross-Entropy,\nDP, Monte Carlo, TD,\nSARSA, Q-learning", ha="center", va="top",
             fontsize=10, color=C_TEXT)
     # model-based
     ax.text(0.68, 0.55, "Dyna, MBPO,\nMuZero, Dreamer", ha="center", va="top", fontsize=10, color=C_TEXT)
     # offline
-    ax.text(0.89, 0.55, "Behavior Cloning,\nDAgger, CQL", ha="center", va="top", fontsize=10, color=C_TEXT)
+    ax.text(0.89, 0.55, "Decision Transformer,\nTrajectory Transformer,\nACT", ha="center", va="top", fontsize=10, color=C_TEXT)
 
     # уровень 2 под model-free
-    _box(ax, (0.2, 0.36), 0.14, 0.09, "Value-based\n(нед. 4-5)", C_TEAL, fontsize=10, text_color=C_TEXT)
-    _box(ax, (0.34, 0.36), 0.14, 0.09, "Policy-based\n(нед. 6-7)", C_TEAL, fontsize=10, text_color=C_TEXT)
-    _box(ax, (0.48, 0.36), 0.14, 0.09, "Actor-Critic\n(нед. 6-8)", C_TEAL, fontsize=10, text_color=C_TEXT)
+    _box(ax, (0.2, 0.36), 0.14, 0.09, "Value-based\n(нед. 5-6)", C_TEAL, fontsize=10, text_color=C_TEXT)
+    _box(ax, (0.34, 0.36), 0.14, 0.09, "Policy-based\n(нед. 7, 9)", C_TEAL, fontsize=10, text_color=C_TEXT)
+    _box(ax, (0.48, 0.36), 0.14, 0.09, "Actor-Critic\n(нед. 8-10)", C_TEAL, fontsize=10, text_color=C_TEXT)
     for x in (0.27, 0.41, 0.55):
         _arrow(ax, (0.41, 0.62), (x, 0.45), C_GREY, lw=1.5)
     ax.text(0.27, 0.32, "DQN, Double DQN,\nDueling, Rainbow", ha="center", va="top", fontsize=9.5, color=C_TEXT)
@@ -169,8 +169,8 @@ def rl_taxonomy():
 
     # нижняя полоса: расширения
     _box(ax, (0.03, 0.04), 0.95, 0.12,
-         "Расширения: exploration (нед. 10)  ·  multi-agent (нед. 12)  ·  distributional / hierarchical / meta-RL, "
-         "POMDP (нед. 13)  ·  RLHF, DPO для LLM (нед. 14)",
+         "Расширения: иерархический RL (нед. 13)  ·  проектная работа (нед. 14)  ·  multi-agent RL (нед. 15)  ·  "
+         "трансформеры в RL (нед. 16)",
          C_LIGHT, fontsize=10.5, text_color=C_TEXT, weight="normal")
 
     fig.tight_layout()
@@ -223,16 +223,15 @@ def mdp_gridworld():
 
 def course_map():
     blocks = [
-        ("Основы", C_GREY, ["1. Введение в RL", "2. Бандиты, MDP,\n    динамическое\n    программирование",
-                            "3. Monte Carlo и TD", "4. Аппроксимация\n    функций, TD(λ)"]),
-        ("Deep RL", C_AGENT, ["5. Deep Q-Learning", "6. Policy Gradient", "7. TRPO и PPO",
-                              "8. DDPG, TD3, SAC"]),
-        ("Расширения", C_ENV, ["9. Model-based RL", "10. Exploration", "11. Imitation и Offline RL",
-                               "12. Multi-agent RL"]),
-        ("Фронтир", C_REWARD, ["13. Distributional,\n      hierarchical, meta-RL", "14. RLHF и DPO для LLM",
-                               "15. Фронтир RL,\n      защита проектов"]),
+        ("Основы", C_GREY, ["1. Знакомство с RL", "2. Ключевые понятия,\n    построение среды",
+                            "3. Алгоритмы RL:\n    value based", "4. Алгоритмы RL:\n    policy based"]),
+        ("Deep RL", C_AGENT, ["5. Введение в Deep RL", "6. DQN", "7. Deep Policy Gradient", "8. Actor-Critic"]),
+        ("Продвинутые методы", C_ENV, ["9. TRPO → PPO", "10. DDPG → TD3 → LSTM-TD3",
+                                       "11. Model-based RL, ч. 1", "12. Model-based RL, ч. 2"]),
+        ("Расширения и проект", C_REWARD, ["13. Иерархический RL", "14. Проектная работа:\n      выбор темы",
+                                          "15. Multi-agent RL", "16. Трансформеры в RL,\n      защита проектов"]),
     ]
-    fig, ax = plt.subplots(figsize=(14, 5.2))
+    fig, ax = plt.subplots(figsize=(14, 5.6))
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
     ax.axis("off")
@@ -240,15 +239,15 @@ def course_map():
     gap = 0.03
     for k, (title, color, items) in enumerate(blocks):
         x = 0.01 + k * (w + gap)
-        _box(ax, (x, 0.84), w, 0.13, title, color, fontsize=14)
-        ax.add_patch(FancyBboxPatch((x, 0.04), w, 0.74, boxstyle="round,pad=0.01,rounding_size=0.02",
+        _box(ax, (x, 0.85), w, 0.12, title, color, fontsize=13.5)
+        ax.add_patch(FancyBboxPatch((x, 0.04), w, 0.75, boxstyle="round,pad=0.01,rounding_size=0.02",
                                     linewidth=1.5, edgecolor=color, facecolor="white"))
-        y = 0.68
+        y = 0.69
         for item in items:
             ax.text(x + 0.015, y, item, ha="left", va="center", fontsize=11.5, color=C_TEXT, linespacing=1.4)
-            y -= 0.17
+            y -= 0.175
         if k < len(blocks) - 1:
-            ax.text(x + w + gap / 2, 0.905, "→", ha="center", va="center", fontsize=18, color=C_GREY)
+            ax.text(x + w + gap / 2, 0.91, "→", ha="center", va="center", fontsize=18, color=C_GREY)
     fig.tight_layout()
     fig.savefig(OUT / "course_map.png", dpi=DPI)
     plt.close(fig)
@@ -302,8 +301,59 @@ def rl_origins():
     fig.savefig(OUT / "rl_origins.png", dpi=DPI)
     plt.close(fig)
 
+def markov_chain():
+    """Марковская цепь «день студента»: 4 состояния, вероятности переходов на стрелках."""
+    import numpy as np
+    from matplotlib.patches import Circle
+
+    fig, ax = plt.subplots(figsize=(9, 5.4))
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    ax.set_aspect("equal")
+    ax.axis("off")
+
+    pos = {"Лекция": (0.2, 0.72), "Соцсети": (0.2, 0.22), "Сон": (0.62, 0.22), "Экзамен\nсдан": (0.62, 0.72)}
+    colors = {"Лекция": C_AGENT, "Соцсети": C_ACCENT, "Сон": C_PURPLE, "Экзамен\nсдан": C_ENV}
+    r = 0.09
+    for name, (x, y) in pos.items():
+        ax.add_patch(Circle((x, y), r, facecolor=colors[name], edgecolor="white", lw=2, zorder=3))
+        ax.text(x, y, name, ha="center", va="center", fontsize=11, color="white", weight="bold", zorder=4)
+
+    def edge(a, b, p, rad=0.0, off=(0, 0)):
+        (x0, y0), (x1, y1) = pos[a], pos[b]
+        dx, dy = x1 - x0, y1 - y0
+        d = (dx ** 2 + dy ** 2) ** 0.5
+        p0 = (x0 + dx / d * r, y0 + dy / d * r)
+        p1 = (x1 - dx / d * r, y1 - dy / d * r)
+        arr = FancyArrowPatch(p0, p1, arrowstyle="-|>", mutation_scale=18, lw=2, color=C_GREY,
+                              connectionstyle=f"arc3,rad={rad}", zorder=2)
+        ax.add_patch(arr)
+        mx, my = (p0[0] + p1[0]) / 2 + off[0], (p0[1] + p1[1]) / 2 + off[1]
+        ax.text(mx, my, p, ha="center", va="center", fontsize=11, color=C_TEXT, weight="bold",
+                bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="none"), zorder=5)
+
+    edge("Лекция", "Соцсети", "0.5", rad=0.3, off=(-0.05, 0))
+    edge("Соцсети", "Лекция", "0.3", rad=0.3, off=(0.05, 0))
+    edge("Лекция", "Экзамен\nсдан", "0.3", off=(0, 0.04))
+    edge("Лекция", "Сон", "0.2", rad=0.15, off=(0.06, 0.03))
+    edge("Соцсети", "Сон", "0.7", off=(0, -0.04))
+    edge("Сон", "Лекция", "1.0", rad=0.15, off=(-0.06, -0.03))
+
+    # петля у «Экзамен сдан» (терминальное состояние)
+    ax.annotate("", xy=(0.66, 0.815), xytext=(0.58, 0.815),
+                arrowprops=dict(arrowstyle="-|>", color=C_GREY, lw=2, connectionstyle="arc3,rad=-1.8"))
+    ax.text(0.62, 0.93, "1.0", ha="center", va="center", fontsize=11, color=C_TEXT, weight="bold")
+
+    ax.text(0.97, 0.5,
+            "Марковская цепь:\nсостояния + вероятности\nпереходов между ними.\n\n"
+            "Из каждого состояния\nсумма исходящих\nвероятностей равна 1.",
+            ha="right", va="center", fontsize=10.5, color=C_TEXT, linespacing=1.5)
+    fig.tight_layout()
+    fig.savefig(OUT / "markov_chain.png", dpi=DPI)
+    plt.close(fig)
+
 
 if __name__ == "__main__":
-    for fn in (agent_env_loop, ml_paradigms, rl_timeline, rl_origins, rl_taxonomy, mdp_gridworld, course_map):
+    for fn in (agent_env_loop, ml_paradigms, rl_timeline, rl_origins, rl_taxonomy, mdp_gridworld, course_map, markov_chain):
         fn()
         print("saved", fn.__name__)

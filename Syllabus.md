@@ -2,7 +2,7 @@
 
 #### Что это за курс
 
-Курс даёт теоретическую базу и практический опыт в обучении с подкреплением (RL) — от табличных методов и MDP до глубокого RL, offline RL, multi-agent RL и RLHF для LLM. Цель — чтобы студент мог не только реализовать и отладить типовые RL-алгоритмы с нуля, но и осознанно выбирать метод под задачу, понимать его слабые места и читать современные статьи по теме.
+Курс даёт теоретическую базу и практический опыт в обучении с подкреплением (RL) — от табличных методов и MDP до глубокого RL, model-based и иерархического RL, multi-agent RL и трансформеров в RL. Цель — чтобы студент мог не только реализовать и отладить типовые RL-алгоритмы с нуля, но и осознанно выбирать метод под задачу, понимать его слабые места и читать современные статьи по теме.
 
 #### Люди
 
@@ -10,7 +10,7 @@
 
 #### Формат
 
-* 15 недель, 1 занятие в неделю (пара из лекции + семинара, суммарно ~1.5 "пары" контактного времени)
+* 16 недель, 1 занятие в неделю (пара из лекции + семинара, суммарно ~1.5 "пары" контактного времени)
 * Лекция — теория и разбор алгоритмов
 * Семинар — практика: разбор кода, эксперименты в Jupyter, живое программирование
 * Домашнее задание — почти каждую неделю, в формате `.ipynb` с автопроверкой части заданий через `assert`
@@ -30,360 +30,350 @@
 #### Оценивание (черновой вариант, обсуждаем на первой лекции)
 
 * 60% — домашние задания (устроены неравномерно по сложности, вес домашки указывается в самой домашке)
-* 30% — итоговый проект (неделя 15: защита)
+* 30% — итоговый проект (неделя 14: выбор темы, неделя 16: защита)
 * 10% — активность на семинарах
 
 #### Итоговый проект
 
-Мини-исследование или реализация RL-алгоритма/агента на среде по выбору (Gymnasium classic control / MuJoCo / Atari / кастомная среда / RL для LLM-дообучения). Требования и список тем — см. `Projects.md` (появится к неделе 8, когда будет пройден нужный минимум методов).
+Мини-исследование или реализация RL-алгоритма/агента на среде по выбору (Gymnasium classic control / MuJoCo / Atari / кастомная среда / multi-agent среда). Требования и список тем — см. `Projects.md` (появится к неделе 14, посвящённой выбору темы и организации проектной работы).
 
 ---
 
 # Программа
 
-## Неделя 1 (01.09): Введение в обучение с подкреплением
-
-Цели: выделить основные отличительные черты RL; понимать области применения RL; разобраться, что отличает RL от других областей машинного обучения.
+## Неделя 1 (01.09): Знакомство с Reinforcement Learning
 
 ### Лекция
 
 * Как устроен курс: формат, оценивание, инструменты
-* Обучение методом проб и ошибок: примеры из жизни (ходьба, велосипед, дрессировка, настольные и видеоигры)
-* Откуда взялся RL: психология (Павлов, закон эффекта Торндайка, подкрепление у Скиннера) и теория управления (Беллман, Минский, Саттон и Барто)
-* Что такое RL: агент, среда, награда, цикл взаимодействия
-* Основные термины: состояние и наблюдение, действие, политика, эпизод, суммарная награда, дисконтирование (интуиция)
-* Награда как спецификация задачи, reward hacking
+* Что такое RL: агент, среда, награда, цель — максимизировать суммарную награду; коротко об истоках в психологии и теории управления
+* Примеры сред с разбором «состояния / действия / награда»: Maze, Frozen Lake, Atari, CartPole, гуманоид; упражнения «определите сами» (шахматы, такси, дата-центр, торговля)
 * Живое демо в Gymnasium: CartPole со случайной и ручной политикой
 * Чем RL отличается от supervised и unsupervised learning: четыре отличительные черты
-* Дилемма exploration vs exploitation на бытовых примерах и простой симуляции (без формул и алгоритмов)
-* Области применения: игры, робототехника, охлаждение дата-центров, торговля на бирже, рои дронов, рекомендации, LLM
-* Итоги: RL зародился в психологии; RL — отдельная группа алгоритмов ML; RL применяется от игр до дата-центров и от биржи до дронов
+* Случайные процессы и марковское свойство, марковские цепи, MRP и return, MDP, политика, траектория, $V$ и $Q$, уравнения Беллмана (ожидания)
+* Награда как спецификация задачи, reward hacking
+* Exploration vs exploitation: многорукие бандиты, regret, ε-greedy, UCB1 (интуиция)
+* Первый алгоритм: метод Cross-Entropy (policy evaluation по Монте-Карло, элитные сессии, policy improvement), демо на Frozen Lake
+* Области применения: игры, робототехника, дата-центры, биржа, рои дронов, рекомендации, LLM
 
 ### Семинар
 
-* Знакомство с Gymnasium: интерфейс `reset/step`, пространства состояний и действий, FrozenLake и CartPole
-* Политика как таблица: ручной маршрут по FrozenLake, что ломается на скользком льду
-* Улучшение ручной эвристики для CartPole, оценка политики по многим эпизодам
+* Интерфейс Gymnasium: `reset/step`, пространства состояний и действий на Frozen Lake
+* Политика как таблица; что ломается на скользком льду
+* Реализация среды многорукого бандита, агентов ε-greedy и UCB1, сравнение regret
+* Реализация табличного Cross-Entropy на Frozen Lake, эксперименты со сглаживанием и скользким льдом
 * Мини-семинар по PyTorch (`seminar/pytorch_intro.ipynb`): тензоры, autograd, `nn.Module`, цикл обучения, behavior cloning эвристики на CartPole
 
 ### Домашнее задание
 
-* Практика: функция прогона эпизодов в Gymnasium, ручная политика для CartPole (порог по средней награде), политики-таблицы для FrozenLake на гладком и скользком льду
-* Теория: описать три задачи из жизни (торговля, охлаждение дата-центра, задача на выбор) на языке RL: агент, среда, состояние, действия, награда, эпизод, exploration
-* Мини-эксперимент: доля исследования и средняя награда в симуляции «трёх кафе»
+* Бандиты: ε-greedy с расписанием, сравнение с UCB1 на нескольких конфигурациях, чувствительность к гиперпараметрам
+* Теория: return, марковская цепь, вывод уравнения Беллмана для $V^\pi$, MDP на бумаге, формулировка задач из жизни как MDP
+* Cross-Entropy на Frozen Lake 8×8: реализация, кривая обучения, сравнение вариантов сглаживания
 
-## Неделя 2 (08.09): Многорукие бандиты, MDP, динамическое программирование
+## Неделя 2 (08.09): Ключевые понятия RL: агент, среда, награда, политика. Построение среды
 
 ### Лекция
 
-* Многорукие бандиты: постановка задачи, regret, exploration vs exploitation формально
-* ε-greedy, UCB1, Thompson Sampling (интуиция, без строгих доказательств)
-* Марковский процесс принятия решений (MDP): состояния, действия, награды, переходы, дисконтирование, марковское свойство
-* Policy, return, value function V(s), action-value function Q(s,a)
-* Уравнения Беллмана (ожидания) — вывод и интуиция
-* Bellman optimality equations
-* Policy Evaluation (iterative), Policy Improvement, Policy Iteration
-* Value Iteration, сходимость (интуиция через contraction mapping)
-* Generalized Policy Iteration
-* Ограничения DP: требуется полная модель среды, curse of dimensionality
+* Агент, среда, наблюдение и состояние (POMDP на интуитивном уровне), действия дискретные и непрерывные
+* Награда: разреженная и плотная, shaping, потенциальные функции, типичные ошибки при проектировании награды
+* Политика: детерминированная и стохастическая, табличная и параметрическая; эпизодические и непрерывные задачи
+* Устройство среды в Gymnasium: `gym.Env`, `spaces`, `reset/step`, `render`, обёртки (`TimeLimit`, `RecordEpisodeStatistics`, нормализация наблюдений)
+* Векторные среды и воспроизводимость: сиды, `VectorEnv`, логирование
 
 ### Семинар
 
-* Реализация среды многорукого бандита с нуля; агенты ε-greedy, UCB1, Thompson Sampling; сравнение regret на графиках
-* Реализация Policy Iteration и Value Iteration для FrozenLake и кастомного GridWorld; сравнение с ручной таблицей из недели 1
-* Визуализация V(s) и оптимальной политики по шагам сходимости
+* Строим свою среду: GridWorld с препятствиями и стохастическими переходами как класс `gym.Env`
+* Обёртки: ограничение длины эпизода, изменение награды, запись статистики
+* Проверка среды (`gymnasium.utils.env_checker`), запуск случайного и ручного агента, Cross-Entropy из недели 1 на своей среде
 
 ### Домашнее задание
 
-* Реализовать и сравнить бандит-алгоритмы (ε-greedy с расписанием, UCB1, Thompson Sampling для Bernoulli-бандита) на нескольких конфигурациях рук
-* Теоретическая часть: вывод уравнения Беллмана для V и Q, вычисление return для простых MDP вручную
-* Реализовать Policy Iteration и Value Iteration с нуля, сравнить скорость сходимости
-* Применить к задаче "Frozen Lake" большего размера и к задаче про управление запасами (inventory management) как MDP с непрерывными состояниями, дискретизированными вручную
+* Реализовать собственную среду (например, «доставка по городу» или «управление запасами») с дискретными состояниями и стохастикой, оформить как `gym.Env`
+* Спроектировать две версии награды (разреженную и плотную), сравнить обучение Cross-Entropy на обеих
+* Теория: описать построенную среду как MDP формально ($S$, $A$, $P$, $R$, $\gamma$)
 
-## Неделя 3 (15.09): Monte Carlo и Temporal Difference обучение
+## Неделя 3 (15.09): Основные алгоритмы RL: value based
 
 ### Лекция
 
-* Model-free prediction: Monte Carlo policy evaluation (every-visit, first-visit)
-* TD(0), TD-error, сравнение MC vs TD (bias/variance, online обучение)
-* Model-free control: on-policy (SARSA) vs off-policy (Q-learning)
-* Expected SARSA, максимизационное смещение (maximization bias) и Double Q-learning
+* Уравнения оптимальности Беллмана, оптимальная политика и её существование
+* Динамическое программирование: policy evaluation, policy improvement, policy iteration, value iteration; сходимость через сжимающее отображение (интуиция)
+* Model-free prediction: Monte Carlo и TD(0), TD-error, bias/variance
+* Model-free control: SARSA (on-policy), Q-learning (off-policy), Expected SARSA; maximization bias и Double Q-learning
 
 ### Семинар
 
-* Реализация SARSA и Q-learning на FrozenLake / Cliff Walking
-* Сравнение траекторий обучения on-policy vs off-policy (классический пример Cliff Walking)
+* Policy iteration и value iteration на Frozen Lake и GridWorld из недели 2, визуализация $V$ и политики
+* SARSA и Q-learning на Cliff Walking: классическое сравнение on-policy и off-policy
+* Q-learning на Taxi-v3
 
 ### Домашнее задание
 
-* Реализовать SARSA, Q-learning, Double Q-learning на Cliff Walking и Taxi-v3
-* Проанализировать влияние ε-расписания и learning rate на сходимость
+* Реализовать value iteration и policy iteration, сравнить скорость сходимости
+* Реализовать SARSA, Q-learning и Double Q-learning на Cliff Walking и Taxi-v3; исследовать влияние ε-расписания и learning rate
+* Теория: показать, что оператор Беллмана — сжатие в норме $\|\cdot\|_\infty$
 
-## Неделя 4 (22.09): Аппроксимация функций, TD(λ)
+## Неделя 4 (22.09): Основные алгоритмы RL: policy based
 
 ### Лекция
 
-* Зачем нужна аппроксимация: большие/непрерывные пространства состояний
-* Линейная аппроксимация ценности, feature engineering (tile coding, RBF)
-* Semi-gradient TD(0), semi-gradient SARSA
-* Eligibility traces, TD(λ), forward view vs backward view
-* On-policy vs off-policy с аппроксимацией: проблема "deadly triad" (function approximation + bootstrapping + off-policy)
+* Зачем оптимизировать политику напрямую: непрерывные действия, стохастические политики, большие пространства действий
+* Параметризованная политика: softmax над таблицей и линейными признаками
+* Policy gradient theorem: вывод, REINFORCE, оценка градиента по Монте-Карло
+* Снижение дисперсии: baseline, reward-to-go; связь с Cross-Entropy как с «policy gradient без градиента»
+* Сравнение value-based и policy-based подходов
 
 ### Семинар
 
-* Линейная аппроксимация Q-функции с tile coding на MountainCar
-* Реализация SARSA(λ) с eligibility traces
+* REINFORCE с табличной softmax-политикой на GridWorld / Frozen Lake
+* REINFORCE с линейными признаками на CartPole, влияние baseline на дисперсию
+* Cross-Entropy vs REINFORCE на одной задаче: скорость и стабильность
 
 ### Домашнее задание
 
-* Реализовать semi-gradient SARSA и SARSA(λ) с tile coding на MountainCar-v0
-* Экспериментально показать deadly triad на упрощённом примере (Baird's counterexample)
+* Реализовать REINFORCE с baseline и без на CartPole, построить кривые обучения по нескольким сидам
+* Теория: вывести policy gradient theorem для эпизодической задачи, вычислить градиент softmax-политики
 
-## Неделя 5 (29.09): Deep Q-Learning
+## Неделя 5 (29.09): Введение в Deep Reinforcement Learning
 
 ### Лекция
 
-* От линейной аппроксимации к нейросетям: DQN (Mnih et al., 2015)
-* Experience Replay, target network — зачем и как решают проблему нестабильности
-* Double DQN, Dueling DQN architecture
-* Prioritized Experience Replay
-* Rainbow: объединение улучшений, ablation-анализ вклада каждого компонента
+* Ограничения табличных методов; аппроксимация функций: линейная и нейросетевая
+* Минимум по нейросетям и PyTorch: слои, autograd, оптимизаторы, цикл обучения
+* Deep Cross-Entropy Method: нейросетевая политика, обучение на элитных сессиях как классификация
+* Аппроксимация ценности: semi-gradient TD, deadly triad (function approximation + bootstrapping + off-policy)
+* Практические детали: нормализация наблюдений, сиды, логирование экспериментов
 
 ### Семинар
 
-* Реализация DQN на CartPole с нуля (replay buffer, target network)
-* Добавление Double DQN и Dueling-архитектуры, сравнение кривых обучения
+* Deep CEM на CartPole и LunarLander
+* Semi-gradient TD с линейными признаками и с MLP на Mountain Car
+* Разбор устройства обучающего цикла и типичных ошибок (масштаб награды, размер батча, learning rate)
 
 ### Домашнее задание
 
-* Реализовать DQN + Double DQN + Dueling DQN на LunarLander-v2
-* (бонус) добавить Prioritized Experience Replay и сравнить sample efficiency
+* Реализовать Deep CEM для CartPole и LunarLander, добиться стабильного решения
+* Реализовать semi-gradient SARSA с MLP на Mountain Car, сравнить с tile coding
+* Теория: почему bootstrapping с аппроксимацией может расходиться (пример Байрда, интуиция)
 
-## Неделя 6 (06.10): Policy Gradient методы
+## Неделя 6 (06.10): Deep Q-Network (DQN)
 
 ### Лекция
 
-* Почему value-based методов недостаточно: стохастические/непрерывные политики
-* Policy Gradient Theorem, вывод REINFORCE
-* Baseline для снижения дисперсии (value function baseline)
-* Actor-Critic: разделение ролей актора и критика
-* A2C (advantage actor-critic), синхронный vs асинхронный (A3C) сбор опыта
+* От Q-learning к DQN: нейросеть вместо таблицы, experience replay, target network
+* Почему без replay и target network не работает: корреляция данных, движущаяся цель
+* Улучшения: Double DQN, Dueling DQN, Prioritized Experience Replay, n-step; Rainbow (обзор)
+* DQN на Atari: препроцессинг кадров, frame stacking, reward clipping
 
 ### Семинар
 
-* Реализация REINFORCE с baseline на CartPole
-* Реализация Advantage Actor-Critic (A2C) с несколькими параллельными средами
+* Реализация DQN с нуля на CartPole и LunarLander
+* Ablation: без target network, без replay buffer; влияние размера буфера и частоты обновления
+* Double DQN и Dueling DQN поверх базовой реализации
 
 ### Домашнее задание
 
-* Реализовать REINFORCE (с baseline и без) и A2C на CartPole/LunarLander
-* Сравнить дисперсию градиента и стабильность обучения между методами
+* Реализовать DQN, Double DQN и Dueling DQN на LunarLander, сравнить кривые обучения по нескольким сидам
+* (бонус) DQN на Atari Pong с препроцессингом кадров
 
-## Неделя 7 (13.10): TRPO и PPO
+## Неделя 7 (13.10): Deep Policy Gradient (PG)
 
 ### Лекция
 
-* Проблема выбора шага в policy gradient методах, monotonic improvement
-* Trust Region Policy Optimization (TRPO): KL-ограничение, natural gradient (интуиция)
-* Generalized Advantage Estimation (GAE): компромисс bias/variance
-* Proximal Policy Optimization (PPO): clipped surrogate objective, почему он вытеснил TRPO на практике
-* Практические детали PPO: normalize advantages, value clipping, entropy bonus
+* REINFORCE с нейросетевой политикой: дискретные и непрерывные действия (гауссова политика)
+* Проблемы: высокая дисперсия, sample inefficiency, выбор шага
+* Baseline на нейросети, reward-to-go, нормализация advantage, entropy bonus
+* Off-policy policy gradient и importance sampling (кратко)
 
 ### Семинар
 
-* Реализация PPO с нуля (clipped objective + GAE) на CartPole/LunarLander
-* Разбор "37 implementation details of PPO" — какие детали реально важны
+* REINFORCE с MLP на CartPole и LunarLander
+* Гауссова политика на Pendulum: параметризация среднего и дисперсии
+* Диагностика обучения: энтропия политики, дисперсия градиента
 
 ### Домашнее задание
 
-* Реализовать PPO с нуля и обучить на LunarLander-v2 и BipedalWalker-v3 (или аналогичной среде)
-* Ablation: убрать/добавить 2-3 implementation detail и показать эффект на кривой обучения
+* Реализовать REINFORCE с baseline на LunarLander (дискретный) и на Pendulum (непрерывный)
+* Исследовать влияние entropy bonus и нормализации advantage на стабильность
 
-## Неделя 8 (20.10): Непрерывное управление — DDPG, TD3, SAC
+## Неделя 8 (20.10): Actor-Critic
 
 ### Лекция
 
-* Специфика непрерывных action spaces, детерминированная политика
-* DDPG: deterministic policy gradient, actor-critic с replay buffer
-* Проблемы DDPG: переоценка Q, хрупкость к гиперпараметрам
+* Actor-Critic: критик оценивает $V$ или $Q$, актор обновляется по advantage
+* Advantage function, TD-error как несмещённая оценка advantage, n-step advantage, GAE
+* A2C и A3C: синхронное и асинхронное обучение, параллельные среды
+* Общие сети актора и критика, коэффициенты потерь, gradient clipping
+
+### Семинар
+
+* Реализация A2C с параллельными средами на CartPole и LunarLander
+* Сравнение REINFORCE (неделя 7) и A2C по скорости и дисперсии
+* GAE: влияние $\lambda$ на bias/variance
+
+### Домашнее задание
+
+* Реализовать A2C с GAE и векторными средами, обучить на LunarLander
+* Ablation по $\lambda$ и числу параллельных сред
+* Теория: показать, что $\mathbb{E}[\delta_t \mid s_t, a_t] = A^\pi(s_t, a_t)$
+
+## Неделя 9 (27.10): TRPO → PPO
+
+### Лекция
+
+* Проблема выбора шага в policy gradient, monotonic improvement
+* TRPO: KL-ограничение, natural gradient, conjugate gradient (интуиция)
+* PPO: clipped surrogate objective, несколько эпох на батче, почему PPO вытеснил TRPO
+* Практические детали PPO: normalize advantages, value clipping, entropy bonus, «37 implementation details»
+
+### Семинар
+
+* Реализация PPO с нуля (clipped objective + GAE) на CartPole и LunarLander
+* Разбор implementation details: какие реально важны
+* PPO на непрерывной среде (BipedalWalker / HalfCheetah)
+
+### Домашнее задание
+
+* Реализовать PPO с нуля, обучить на LunarLander и BipedalWalker
+* Ablation: убрать или добавить 2–3 implementation detail, показать эффект на кривой обучения
+
+## Неделя 10 (03.11): DDPG → TD3 → LSTM-TD3
+
+### Лекция
+
+* Непрерывное управление и детерминированная политика; deterministic policy gradient
+* DDPG: actor-critic с replay buffer и target networks, шум для exploration
 * TD3: clipped double-Q, delayed policy updates, target policy smoothing
-* SAC: maximum entropy RL, автоматическая настройка температуры, почему SAC устойчивее на практике
+* LSTM-TD3: рекуррентная политика и критик для частично наблюдаемых сред (POMDP), обучение по последовательностям из буфера
+* SAC как альтернатива: maximum entropy RL (обзор)
 
 ### Семинар
 
-* Реализация DDPG/TD3 на Pendulum-v1
-* Реализация SAC, сравнение с TD3 на непрерывной среде
+* Реализация DDPG и TD3 на Pendulum и HalfCheetah
+* POMDP-версия Pendulum (замаскированная скорость): TD3 vs LSTM-TD3
+* Разбор устройства буфера последовательностей и burn-in для рекуррентных сетей
 
 ### Домашнее задание
 
-* Реализовать TD3 и SAC на среде типа HalfCheetah/Hopper (MuJoCo или Brax) или Pendulum+BipedalWalker при отсутствии MuJoCo
-* Сравнить sample efficiency и итоговый результат
+* Реализовать TD3 на Pendulum и одной MuJoCo-среде
+* Реализовать LSTM-TD3 и сравнить с TD3 на POMDP-версии среды
+* (бонус) SAC с автоматической настройкой температуры
 
-## Неделя 9 (27.10): Model-Based RL
+## Неделя 11 (10.11): Model-based RL, часть 1
 
 ### Лекция
 
-* Model-free vs model-based: компромисс sample efficiency vs asymptotic performance
-* Обучение модели среды (динамики), проблема накопления ошибки при роллаутах
-* Dyna-Q: совмещение real experience и planning
-* Model Predictive Control (MPC) с обученной моделью
-* MBPO и современные гибридные подходы; краткое введение в world models (Dreamer) как мост к неделе 13-14
+* Model-based RL: зачем нужна модель среды, sample efficiency, планирование
+* Dyna-Q: обучение на реальном и сгенерированном опыте
+* Обучение модели динамики: детерминированные и вероятностные модели, ансамбли, ошибки модели и их накопление
+* Планирование с моделью: random shooting, MPC, CEM как планировщик
 
 ### Семинар
 
-* Реализация Dyna-Q на GridWorld, сравнение с Q-learning по числу реальных взаимодействий
-* Обучение простой модели динамики (нейросеть) и MPC-планирование на CartPole/Pendulum
+* Dyna-Q на табличной среде: сколько планирования нужно
+* Обучение нейросетевой модели динамики для Pendulum / CartPole, визуализация ошибок предсказания
+* MPC с CEM-планировщиком поверх выученной модели
 
 ### Домашнее задание
 
-* Реализовать Dyna-Q и показать выигрыш в sample efficiency относительно Q-learning
-* Реализовать простой MBPO-подобный pipeline (обученная модель + короткие роллауты + SAC/PPO) на Pendulum
+* Реализовать Dyna-Q и сравнить с Q-learning по числу взаимодействий со средой
+* Обучить модель динамики и MPC-контроллер на Pendulum, сравнить с TD3 по sample efficiency
 
-## Неделя 10 (03.11): Exploration в глубоком RL
+## Неделя 12 (17.11): Model-based RL, часть 2
 
 ### Лекция
 
-* Почему ε-greedy недостаточно в средах со sparse reward
-* Count-based exploration и псевдо-подсчёты (pseudo-counts) в больших пространствах
-* Intrinsic motivation: curiosity (ICM), Random Network Distillation (RND)
-* Bootstrapped DQN, uncertainty-based exploration
-* UCB/Thompson Sampling идеи, перенесённые в deep RL (bandit-подобные бонусы)
+* MBPO: короткие rollouts из модели, ансамбли, совмещение с SAC/TD3
+* Латентные модели мира: Dreamer (обзор): обучение в воображении
+* MuZero: планирование в латентном пространстве, поиск по дереву (обзор)
+* Когда model-based выигрывает и когда проигрывает: ошибки модели, стоимость обучения, горизонт
 
 ### Семинар
 
-* Реализация RND-бонуса поверх PPO на среде со sparse reward (например, MountainCar или кастомная sparse-reward среда)
-* Визуализация покрытия пространства состояний с exploration bonus и без
+* Реализация упрощённого MBPO поверх TD3 недели 10
+* Ablation: длина rollout из модели, размер ансамбля
+* Разбор кода Dreamer / MuZero (чтение)
 
 ### Домашнее задание
 
-* Добавить curiosity/RND-бонус к своему PPO/DQN агенту из недель 5-7 и показать эффект на sparse-reward версии среды
-* Сравнить с epsilon-greedy baseline
+* Реализовать MBPO на Pendulum / HalfCheetah, сравнить с TD3 по sample efficiency
+* Эссе на 1 страницу: как ошибка модели влияет на политику, с экспериментом на разных горизонтах rollout
 
-## Неделя 11 (10.11): Imitation Learning и Offline RL
+## Неделя 13 (24.11): Иерархическое обучение с подкреплением
 
 ### Лекция
 
-* Behavioral Cloning: постановка, проблема covariate shift
-* DAgger: интерактивный сбор данных с экспертом
-* GAIL: imitation learning через adversarial training (связь с GAN)
-* Offline RL: обучение по фиксированному датасету без взаимодействия со средой
-* Проблема distributional shift и переоценки Q вне поддержки датасета
-* BCQ, CQL, IQL — как современные методы борются с extrapolation error
+* Временна́я абстракция: зачем нужны иерархии, длинные горизонты и разреженная награда
+* Options framework: опции, политики над опциями, intra-option learning
+* Goal-conditioned RL и Hindsight Experience Replay (HER)
+* Feudal networks, HIRO, HAC: менеджер и рабочий (обзор)
 
 ### Семинар
 
-* Сбор экспертных траекторий и обучение BC на CartPole/LunarLander
-* Реализация DAgger, сравнение с чистым BC
-* Разбор кода CQL/IQL на готовом offline-датасете (D4RL-подобном)
+* HER поверх DQN/TD3 на среде с разреженной наградой (Bit-Flip, FetchReach)
+* Реализация простых опций для GridWorld с комнатами (four rooms)
+* Разбор архитектуры HIRO / HAC
 
 ### Домашнее задание
 
-* Реализовать BC и DAgger, сравнить качество и число обращений к эксперту
-* Реализовать CQL или IQL на offline-датасете и сравнить с naive BC/behavior cloning на том же датасете
+* Реализовать HER и показать выигрыш на задаче с разреженной наградой
+* Реализовать иерархического агента на four rooms, сравнить с плоским Q-learning
 
-## Неделя 12 (17.11): Multi-Agent RL
+## Неделя 14 (01.12): Выбор темы и организация проектной работы
 
 ### Лекция
 
-* От single-agent к multi-agent: кооперация, конкуренция, смешанные игры
-* Independent learners и проблема нестационарности среды с точки зрения одного агента
-* Centralized Training, Decentralized Execution (CTDE)
-* QMIX (value decomposition), MAPPO (multi-agent PPO)
-* Self-play и его роль в достижении сверхчеловеческой игры (AlphaGo/AlphaStar, кратко)
+* Форматы проектов: воспроизведение статьи, своя среда, сравнение методов, применение к прикладной задаче
+* Как ставить эксперимент в RL: сиды, доверительные интервалы, baseline, честное сравнение, типичные ошибки
+* Инфраструктура: логирование (TensorBoard / W&B), конфиги, чекпоинты, вычислительный бюджет
+* Как читать RL-статью и как писать отчёт; список предлагаемых тем (`Projects.md`)
 
 ### Семинар
 
-* Реализация independent Q-learning/PPO на простой multi-agent среде (например, PettingZoo)
-* Реализация QMIX или MAPPO на кооперативной задаче
+* Питчи: каждая команда за 3 минуты формулирует задачу, среду, метод, метрики
+* Обсуждение и корректировка тем, распределение по командам
+* Настройка инфраструктуры проекта: шаблон репозитория, логирование
 
 ### Домашнее задание
 
-* Реализовать MAPPO (или QMIX) на кооперативной multi-agent среде из PettingZoo
-* Сравнить с independent learners baseline по итоговому качеству координации
+* Проектное предложение на 1–2 страницы: постановка, среда, план экспериментов, baseline, критерии успеха, план по неделям
 
-## Неделя 13 (24.11): Distributional RL, иерархический и Meta-RL, POMDP
+## Неделя 15 (08.12): Многоагентное обучение и кооперация агентов
 
 ### Лекция
 
-* Distributional RL: зачем моделировать распределение возврата, а не только среднее
-* C51, Quantile Regression DQN (QR-DQN), IQN — кратко
-* Hierarchical RL: options framework, feudal networks — идея временной абстракции
-* Meta-RL: обучение агента, который быстро адаптируется к новой задаче (RL², MAML-подход к RL, кратко)
-* Частично наблюдаемые MDP (POMDP): recurrent policies, belief state (интуиция)
+* От single-agent к multi-agent: кооперация, конкуренция, смешанные игры; нестационарность среды для отдельного агента
+* Independent learners и их проблемы; Centralized Training, Decentralized Execution (CTDE)
+* Value decomposition (VDN, QMIX), MAPPO; коммуникация между агентами
+* Self-play и его роль в сверхчеловеческой игре; примеры: рои дронов, футбол роботов, StarCraft
 
 ### Семинар
 
-* Реализация C51 или QR-DQN поверх DQN-инфраструктуры недели 5, сравнение на Atari-подобной задаче
-* Recurrent PPO (LSTM-политика) на среде с частичной наблюдаемостью
+* Independent Q-learning / PPO на кооперативной среде из PettingZoo
+* Реализация QMIX или MAPPO, сравнение с independent learners
+* Многоагентная среда с дронами (gym-pybullet-drones или упрощённая своя)
 
 ### Домашнее задание
 
-* Реализовать QR-DQN и сравнить с обычным DQN по стабильности и итоговому качеству
-* (на выбор) добавить рекуррентность в PPO и обучить на POMDP-версии CartPole (с замаскированной скоростью)
+* Реализовать MAPPO или QMIX на кооперативной среде PettingZoo, сравнить с independent learners по качеству координации
+* Промежуточный отчёт по проекту
 
-## Неделя 14 (01.12): RL для LLM — RLHF и альтернативы
+## Неделя 16 (15.12): Трансформеры в RL: decision transformers и action transformers. Защита проектов
 
 ### Лекция
 
-* От классического RL к дообучению языковых моделей: постановка задачи, action space = токены
-* Reward modeling: сбор предпочтений (pairwise comparisons), обучение reward model, Bradley-Terry модель
-* RLHF pipeline: SFT → reward model → PPO с KL-штрафом к SFT-политике
-* Проблемы RLHF на практике: reward hacking, нестабильность PPO для LLM, дороговизна
-* DPO (Direct Preference Optimization) и его вывод как "RL без RL"
-* Альтернативы и развитие: RLAIF, IPO/KTO (кратко), RL для reasoning (GRPO/PPO с verifiable rewards)
+* RL как sequence modeling: траектория как последовательность токенов
+* Decision Transformer: return-to-go, обучение на offline-данных, связь с behavior cloning
+* Trajectory Transformer и планирование с beam search; Gato и мультизадачные агенты (обзор)
+* Action transformers: Action Chunking Transformer (ACT) и трансформеры в робототехнике (RT-1/RT-2, обзор)
+* Защита проектов
 
 ### Семинар
 
-* Реализация упрощённого RLHF-пайплайна на маленькой модели: reward model + PPO с KL-штрафом на игрушечной задаче (например, sentiment-контролируемая генерация)
-* Реализация DPO на том же датасете предпочтений, сравнение с PPO-версией
+* Decision Transformer на offline-датасете (CartPole / LunarLander, данные собраны агентами из курса)
+* Влияние целевого return-to-go на поведение агента
+* Защита проектов
 
 ### Домашнее задание
 
-* Реализовать DPO дообучение маленькой языковой модели на датасете предпочтений
-* Сравнить (качественно и по reward model) результат с PPO-RLHF версией из семинара
-
-## Неделя 15 (08.12): Фронтир RL, защита проектов
-
-### Лекция
-
-* Обзор открытых проблем: sample efficiency, sim-to-real, safe RL, credit assignment на длинных горизонтах
-* RL в реальных приложениях: рекомендательные системы, робототехника, LLM-агенты, RL для оптимизации инфраструктуры
-* Куда идти дальше: ключевые лаборатории, конференции (NeurIPS/ICML/ICLR RL-треки), как читать современные RL-статьи
-
-### Семинар / Практика
-
-* Защита итоговых проектов: короткие доклады студентов + обсуждение
-
-### Домашнее задание
-
-* Нет — вместо этого сдача итогового проекта
-
----
-
-# Литература
-
-## Основные
-
-* Richard S. Sutton, Andrew G. Barto, [Reinforcement Learning: An Introduction (2nd ed.)](http://incompleteideas.net/book/the-book-2nd.html) ❗️ — основной учебник для недель 1-4
-* David Silver, [UCL Course on RL](https://www.davidsilver.uk/teaching/) (видео + слайды) ❗️
-* Sergey Levine, [CS285: Deep Reinforcement Learning (Berkeley)](http://rail.eecs.berkeley.edu/deeprlcourse/) ❗️ — для недель 5-13
-* [Spinning Up in Deep RL (OpenAI)](https://spinningup.openai.com/) ❗️ — отличные конспекты + чистый код по policy gradient/PPO/SAC/TD3
-
-## По отдельным темам
-
-* Mnih et al., [Human-level control through deep reinforcement learning](https://www.nature.com/articles/nature14236) (DQN)
-* Schulman et al., [Proximal Policy Optimization Algorithms](https://arxiv.org/abs/1707.06347)
-* Haarnoja et al., [Soft Actor-Critic](https://arxiv.org/abs/1801.01290)
-* Fujimoto et al., [Addressing Function Approximation Error in Actor-Critic Methods](https://arxiv.org/abs/1802.09477) (TD3)
-* Janner et al., [When to Trust Your Model: Model-Based Policy Optimization](https://arxiv.org/abs/1906.08253) (MBPO)
-* Kumar et al., [Conservative Q-Learning for Offline RL](https://arxiv.org/abs/2006.04779)
-* Rashid et al., [QMIX](https://arxiv.org/abs/1803.11485); Yu et al., [The Surprising Effectiveness of PPO in Cooperative Multi-Agent Games](https://arxiv.org/abs/2103.01955) (MAPPO)
-* Ouyang et al., [Training language models to follow instructions with human feedback](https://arxiv.org/abs/2203.02155) (InstructGPT/RLHF)
-* Rafailov et al., [Direct Preference Optimization](https://arxiv.org/abs/2305.18290)
-* Huang et al., [The 37 Implementation Details of Proximal Policy Optimization](https://iclr-blog-track.github.io/2022/03/25/ppo-implementation-details/)
-
-# TODO
-
-* Уточнить оценивание и дедлайны совместно со студентами на первой лекции
-* Определить, будет ли доступ к GPU/кластеру для домашек 5-14 и добавить инструкцию в `tools/`
-* Написать `Projects.md` к неделе 8
+* Итоговый отчёт и код проекта; презентация на защите
