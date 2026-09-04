@@ -1,0 +1,19 @@
+[project]
+name = "rl-course"
+version = "0.1.0"
+description = "Материалы курса Reinforcement Learning"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+    "matplotlib",
+    "gymnasium[classic-control,box2d]",
+    "torch",
+    "tqdm",
+    "jupyter",
+    "ipykernel",
+    "pandas",
+    "seaborn",
+]
+
+[tool.uv]
+package = false

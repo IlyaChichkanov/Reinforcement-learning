@@ -117,6 +117,16 @@
 
 ### Окружение
 
+Рекомендуемый способ — через [uv](https://docs.astral.sh/uv/):
+
+```bash
+cd RL
+uv sync
+uv run python -m ipykernel install --user --name rl-course --display-name "RL course"
+```
+
+Без uv — обычный venv:
+
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
