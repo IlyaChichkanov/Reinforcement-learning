@@ -17,13 +17,13 @@
 <tr>
 <td>1</td>
 <td>01.09</td>
-<td>Введение в RL, многорукие бандиты, MDP</td>
-<td><a href="01-intro-mdp-bandits/lecture/lecture.ipynb">лекция</a> · <a href="01-intro-mdp-bandits/seminar/seminar.ipynb">семинар</a> · <a href="01-intro-mdp-bandits/homework/homework.ipynb">дз</a> · <a href="01-intro-mdp-bandits/seminar/pytorch_intro.ipynb">pytorch-разминка</a></td>
+<td>Введение в RL</td>
+<td><a href="01-intro/lecture/lecture.ipynb">лекция</a> · <a href="01-intro/seminar/seminar.ipynb">семинар</a> · <a href="01-intro/homework/homework.ipynb">дз</a> · <a href="01-intro/seminar/pytorch_intro.ipynb">pytorch-разминка</a></td>
 </tr>
 <tr>
 <td>2</td>
 <td>08.09</td>
-<td>Динамическое программирование</td>
+<td>Многорукие бандиты, MDP, динамическое программирование</td>
 <td></td>
 </tr>
 <tr>
