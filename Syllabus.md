@@ -45,8 +45,10 @@
 
 ### Лекция
 
+* Как устроен курс: формат, оценивание, инструменты
+* Зачем нужен RL: примеры с демо и ссылками (TD-Gammon, DQN, AlphaGo/AlphaZero, OpenAI Five, робототехника, дата-центры, RLHF и рассуждающие LLM)
 * Что такое RL и чем он отличается от supervised/unsupervised learning
-* Примеры: игры (Atari, Go, StarCraft), робототехника, рекомендательные системы, RLHF для LLM
+* Живое демо в Gymnasium: CartPole со случайной и эвристической политикой
 * Agent-environment interaction loop, эпизодические и непрерывные задачи
 * Многорукие бандиты: постановка задачи, exploration vs exploitation
 * ε-greedy, UCB1, Thompson Sampling, regret и его анализ (интуиция, без строгих доказательств)
@@ -60,6 +62,7 @@
 * Реализация среды многорукого бандита с нуля
 * Реализация ε-greedy, UCB1, Thompson Sampling; сравнение regret на графиках
 * Первое знакомство с табличной MDP-средой (FrozenLake / кастомный GridWorld)
+* Мини-семинар по PyTorch (`seminar/pytorch_intro.ipynb`): тензоры, autograd, `nn.Module`, цикл обучения, behavior cloning эвристики на CartPole
 
 ### Домашнее задание
 

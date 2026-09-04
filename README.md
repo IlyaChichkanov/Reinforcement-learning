@@ -1,6 +1,6 @@
 # Reinforcement Learning
 
-Курс по обучению с подкреплением для магистров. Полная программа — в [Syllabus.md](Syllabus.md).
+Курс по обучению с подкреплением для бакалавров 4 курса. Полная программа — в [Syllabus.md](Syllabus.md).
 
 ### Материалы занятий
 
@@ -18,7 +18,7 @@
 <td>1</td>
 <td>01.09</td>
 <td>Введение в RL, многорукие бандиты, MDP</td>
-<td><a href="01-intro-mdp-bandits/lecture/lecture.ipynb">лекция</a> · <a href="01-intro-mdp-bandits/seminar/seminar.ipynb">семинар</a> · <a href="01-intro-mdp-bandits/homework/homework.ipynb">дз</a></td>
+<td><a href="01-intro-mdp-bandits/lecture/lecture.ipynb">лекция</a> · <a href="01-intro-mdp-bandits/seminar/seminar.ipynb">семинар</a> · <a href="01-intro-mdp-bandits/homework/homework.ipynb">дз</a> · <a href="01-intro-mdp-bandits/seminar/pytorch_intro.ipynb">pytorch-разминка</a></td>
 </tr>
 <tr>
 <td>2</td>
