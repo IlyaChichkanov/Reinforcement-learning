@@ -14,6 +14,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
+import numpy as np  # noqa: E402
 from matplotlib.patches import FancyArrowPatch, FancyBboxPatch, Rectangle  # noqa: E402
 
 OUT = Path(__file__).resolve().parent
@@ -353,7 +354,72 @@ def markov_chain():
     plt.close(fig)
 
 
+def cem_loop():
+    """Три шага метода Cross-Entropy: сыграть -> отобрать элиту -> подстроить политику."""
+    rng = np.random.default_rng(3)
+    fig, ax = plt.subplots(figsize=(13, 5.0))
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1.16)
+    ax.axis("off")
+
+    panels = [(0.03, "1. Сыграть", C_AGENT), (0.37, "2. Отобрать элиту", C_ENV),
+              (0.71, "3. Подстроить политику", C_REWARD)]
+    pw = 0.26
+    for x0, title, color in panels:
+        _box(ax, (x0, 0.83), pw, 0.11, title, color, fontsize=13)
+
+    # Облако эпизодов: y — return. Большинство внизу, несколько удачных вверху.
+    n = 34
+    xs = rng.uniform(0.04, 0.24, n)
+    ys = np.concatenate([rng.uniform(0.30, 0.45, n - 4), rng.uniform(0.62, 0.72, 4)])
+    thr = 0.55
+
+    # Панель 1: все эпизоды одинаковым цветом
+    ax.scatter(xs + 0.005, ys, s=42, color=C_AGENT, alpha=0.85, zorder=3)
+    ax.text(0.16, 0.20, "$K$ эпизодов\nтекущей политикой", ha="center", va="top",
+            fontsize=10.5, color=C_TEXT, linespacing=1.5)
+    ax.annotate("", xy=(0.028, 0.72), xytext=(0.028, 0.30),
+                arrowprops=dict(arrowstyle="-|>", color=C_GREY, lw=1.6))
+    ax.text(0.019, 0.51, "return", ha="center", va="center", fontsize=9.5,
+            color=C_GREY, rotation=90)
+
+    # Панель 2: те же точки, порог, элита выделена
+    xs2 = xs + 0.34
+    elite = ys >= thr
+    ax.scatter(xs2[~elite], ys[~elite], s=38, color=C_GREY, alpha=0.35, zorder=3)
+    ax.scatter(xs2[elite], ys[elite], s=95, color=C_ENV, alpha=0.95, zorder=4,
+               edgecolors="white", linewidths=1.2)
+    ax.plot([0.37, 0.63], [thr, thr], ls="--", lw=1.8, color=C_ACCENT, zorder=2)
+    ax.text(0.632, thr, "порог", ha="left", va="center", fontsize=10,
+            color=C_ACCENT, weight="bold")
+    ax.text(0.50, 0.20, "квантиль уровня $q$:\nоставляем только лучшие", ha="center", va="top",
+            fontsize=10.5, color=C_TEXT, linespacing=1.5)
+
+    # Панель 3: строка политики до и после
+    for x0, label, probs, color in [(0.74, "было", [0.25, 0.25, 0.25, 0.25], C_GREY),
+                                    (0.87, "стало", [0.05, 0.70, 0.15, 0.10], C_REWARD)]:
+        ax.text(x0 + 0.045, 0.70, label, ha="center", va="bottom", fontsize=10.5,
+                color=C_TEXT, weight="bold")
+        for k, pr in enumerate(probs):
+            h = pr * 0.42
+            ax.add_patch(Rectangle((x0 + k * 0.024, 0.26), 0.019, h,
+                                   facecolor=color, edgecolor="none"))
+        ax.text(x0 + 0.045, 0.235, "←  ↓  →  ↑", ha="center", va="top", fontsize=10,
+                color=C_GREY)
+    ax.text(0.86, 0.16, "частоты действий элиты\nстановятся новой политикой", ha="center",
+            va="top", fontsize=10.5, color=C_TEXT, linespacing=1.5)
+
+    # Возврат к шагу 1 — дугой поверх панелей, чтобы не задевать подписи
+    _arrow(ax, (0.90, 0.96), (0.13, 0.96), C_GREY, rad=0.10, lw=2.0)
+    ax.text(0.515, 1.11, "и снова, уже с новой политикой", ha="center", va="center",
+            fontsize=11.5, color=C_GREY, weight="bold")
+
+    fig.tight_layout()
+    fig.savefig(OUT / "cem_loop.png", dpi=DPI)
+    plt.close(fig)
+
+
 if __name__ == "__main__":
-    for fn in (agent_env_loop, ml_paradigms, rl_timeline, rl_origins, rl_taxonomy, mdp_gridworld, course_map, markov_chain):
+    for fn in (agent_env_loop, ml_paradigms, rl_timeline, rl_origins, rl_taxonomy, mdp_gridworld, course_map, markov_chain, cem_loop):
         fn()
         print("saved", fn.__name__)
