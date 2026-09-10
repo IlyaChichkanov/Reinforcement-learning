@@ -24,7 +24,7 @@
 <td>2</td>
 <td>08.09</td>
 <td>Ключевые понятия RL: агент, среда, награда, политика. Построение среды</td>
-<td></td>
+<td><a href="02-environments/lecture/lecture.ipynb">лекция</a> · <a href="02-environments/seminar/seminar.ipynb">семинар</a> · <a href="02-environments/homework/homework.ipynb">дз</a></td>
 </tr>
 <tr>
 <td>3</td>

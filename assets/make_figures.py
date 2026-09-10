@@ -419,7 +419,86 @@ def cem_loop():
     plt.close(fig)
 
 
+def env_anatomy():
+    """Устройство среды Gymnasium: что должен реализовать класс gym.Env."""
+    fig, ax = plt.subplots(figsize=(9, 4.6))
+    ax.set_xlim(0, 1); ax.set_ylim(0, 1); ax.axis("off")
+    ax.add_patch(FancyBboxPatch((0.03, 0.06), 0.94, 0.88, boxstyle="round,pad=0.01,rounding_size=0.03",
+                                linewidth=2, edgecolor=C_ENV, facecolor="white"))
+    ax.text(0.5, 0.88, "class MyEnv(gym.Env)", ha="center", va="center", fontsize=15, weight="bold", color=C_ENV,
+            family="monospace")
+    rows = [
+        ("observation_space", "что видит агент: Discrete(16), Box(low, high, shape), Dict, ...", C_AGENT),
+        ("action_space", "что агент может делать: Discrete(4), Box(-1, 1, (2,)), ...", C_AGENT),
+        ("reset(seed)", "начать эпизод, вернуть obs, info; seed задаёт self.np_random", C_ENV),
+        ("step(action)", "один шаг: вернуть obs, reward, terminated, truncated, info", C_ENV),
+        ("render() / close()", "картинка или текст для человека; освободить ресурсы", C_GREY),
+    ]
+    y = 0.72
+    for name, desc, color in rows:
+        _box(ax, (0.06, y - 0.05), 0.40, 0.10, name, color, fontsize=10.5, radius=0.02)
+        ax.text(0.49, y, desc, ha="left", va="center", fontsize=11, color=C_TEXT)
+        y -= 0.145
+    fig.tight_layout()
+    fig.savefig(OUT / "env_anatomy.png", dpi=DPI)
+    plt.close(fig)
+
+
+def wrapper_onion():
+    """Обёртки: среда как луковица. gym.make сам добавляет три стандартных слоя."""
+    fig, ax = plt.subplots(figsize=(9, 4.6))
+    ax.set_xlim(0, 1); ax.set_ylim(0, 1); ax.axis("off")
+    layers = [
+        ("RecordEpisodeStatistics", C_PURPLE, "ваша обёртка: складывает return и длину эпизода в info"),
+        ("TimeLimit(max_episode_steps=500)", C_REWARD, "обрывает эпизод: truncated=True"),
+        ("OrderEnforcing", C_TEAL, "ругается, если step() вызван до reset()"),
+        ("PassiveEnvChecker", C_TEAL, "проверяет типы наблюдений и наград"),
+        ("CartPoleEnv", C_ENV, "сама среда: env.unwrapped"),
+    ]
+    n = len(layers)
+    for i, (name, color, _) in enumerate(layers):
+        pad = 0.035 * i
+        ax.add_patch(FancyBboxPatch((0.04 + pad, 0.06 + pad * 1.6), 0.50 - 2 * pad, 0.86 - pad * 3.2,
+                                    boxstyle="round,pad=0.01,rounding_size=0.03",
+                                    linewidth=2.5, edgecolor=color, facecolor="white"))
+        top = 0.06 + pad * 1.6 + 0.86 - pad * 3.2
+        ax.text(0.29, top - 0.035, name, ha="center", va="center", fontsize=9.5,
+                color=color, weight="bold", family="monospace")
+    ax.text(0.29, 0.42, "obs, reward,\nterminated, truncated", ha="center", va="center", fontsize=9, color=C_GREY)
+    y = 0.84
+    for name, color, desc in layers:
+        ax.text(0.58, y, "■", color=color, fontsize=14, va="center")
+        ax.text(0.61, y, desc, fontsize=11, va="center", color=C_TEXT)
+        y -= 0.13
+    ax.text(0.58, 0.14, "gym.make(...) добавляет три нижних слоя сам,\nостальные — вы, снаружи внутрь",
+            fontsize=10.5, color=C_GREY, va="center")
+    fig.tight_layout()
+    fig.savefig(OUT / "wrapper_onion.png", dpi=DPI)
+    plt.close(fig)
+
+
+def reward_types():
+    """Разреженная и плотная награда на одной траектории."""
+    fig, axes = plt.subplots(1, 2, figsize=(9, 3.4), sharey=False)
+    t = np.arange(0, 21)
+    sparse = np.zeros_like(t, dtype=float); sparse[-1] = 1.0
+    path = np.array([20, 19, 18, 17, 16, 15, 16, 17, 16, 15, 14, 13, 12, 11, 10, 8, 6, 4, 3, 1, 0])
+    dist = path / 20                                # расстояние до цели (с небольшим крюком)
+    dense = np.append(dist[:-1] - dist[1:], 0.0) - 0.02   # приближение к цели минус штраф за шаг
+    dense[-1] += 1.0
+    for ax, y, title, color in ((axes[0], sparse, "разреженная: 0, 0, 0, ..., 1", C_REWARD),
+                                (axes[1], dense, "плотная: подсказка на каждом шаге", C_AGENT)):
+        ax.bar(t, y, color=color, width=0.8)
+        ax.set_title(title, fontsize=12); ax.set_xlabel("шаг эпизода"); ax.set_ylabel("награда")
+        ax.axhline(0, color=C_GREY, lw=0.8)
+        for s in ("top", "right"): ax.spines[s].set_visible(False)
+    fig.tight_layout()
+    fig.savefig(OUT / "reward_types.png", dpi=DPI)
+    plt.close(fig)
+
+
 if __name__ == "__main__":
-    for fn in (agent_env_loop, ml_paradigms, rl_timeline, rl_origins, rl_taxonomy, mdp_gridworld, course_map, markov_chain, cem_loop):
+    for fn in (agent_env_loop, ml_paradigms, rl_timeline, rl_origins, rl_taxonomy, mdp_gridworld, course_map, markov_chain, cem_loop,
+               env_anatomy, wrapper_onion, reward_types):
         fn()
         print("saved", fn.__name__)
