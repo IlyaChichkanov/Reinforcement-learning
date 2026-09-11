@@ -18,7 +18,7 @@
 <td>1</td>
 <td>01.09</td>
 <td>Знакомство с Reinforcement Learning</td>
-<td><a href="01-intro/lecture/lecture.ipynb">лекция</a> · <a href="01-intro/seminar/seminar.ipynb">семинар</a> · <a href="01-intro/homework/homework.ipynb">дз</a> · <a href="01-intro/seminar/pytorch_intro.ipynb">pytorch-разминка</a></td>
+<td><a href="01-intro/lecture/lecture.ipynb">лекция</a> · <a href="01-intro/seminar/seminar.ipynb">семинар</a> · <a href="01-intro/homework/homework.ipynb">дз</a> · <a href="01-intro/seminar/dl_basics.ipynb">dl-минимум</a> · <a href="01-intro/seminar/pytorch_intro.ipynb">pytorch-разминка</a></td>
 </tr>
 <tr>
 <td>2</td>
@@ -120,6 +120,13 @@
 * `lecture/` — конспект лекции в виде ноутбука (теория, вывод формул, иногда мини-демо)
 * `seminar/` — ноутбук для занятия: разбор кода и эксперименты вживую
 * `homework/` — ноутбук с заданием; часть проверок оформлена как `assert`, чтобы можно было проверить себя локально
+
+### Если вы не работали с нейросетями
+
+Нейросети появляются в курсе на неделе 5. Чтобы подойти к ней подготовленным, есть два ноутбука для самостоятельной работы, по 2–3 часа каждый:
+
+* [`01-intro/seminar/dl_basics.ipynb`](01-intro/seminar/dl_basics.ipynb) — нейросети с нуля: модель с параметрами, функция потерь, градиентный спуск, backprop, первая сеть на PyTorch, классификация с кросс-энтропией. Внутри — дорожная карта на четыре недели с внешними ресурсами и упражнения с проверками (они же бонусная часть ДЗ 1).
+* [`01-intro/seminar/pytorch_intro.ipynb`](01-intro/seminar/pytorch_intro.ipynb) — механика PyTorch, которая нужна именно в RL: `gather`, `detach`, распределения, behavior cloning на CartPole.
 
 ### Окружение
 
