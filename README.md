@@ -146,3 +146,5 @@ pip install -r requirements.txt
 ```
 
 Основной стек: [Gymnasium](https://gymnasium.farama.org/) для сред, [PyTorch](https://pytorch.org/) для нейросетевых методов.
+
+**Google Colab.** Любой ноутбук можно открыть без установки: кнопка «Open in Colab» стоит в первой ячейке, а первая ячейка с кодом сама ставит недостающие пакеты. Ссылка для любого файла — `https://colab.research.google.com/github/IlyaChichkanov/Reinforcement-learning/blob/main/<путь к ноутбуку>`.
