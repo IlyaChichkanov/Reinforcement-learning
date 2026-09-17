@@ -497,8 +497,104 @@ def reward_types():
     plt.close(fig)
 
 
+
+def observation_vs_state():
+    """Состояние и наблюдение: два разных состояния могут выглядеть одинаково."""
+    fig, ax = plt.subplots(figsize=(10, 4.4))
+    ax.set_xlim(0, 1); ax.set_ylim(0, 1); ax.axis("off")
+    # два состояния слева
+    _box(ax, (0.04, 0.60), 0.24, 0.26, "Состояние A\nшест падает вправо,\nугол +3°", C_ENV, fontsize=10.5, radius=0.02)
+    _box(ax, (0.04, 0.14), 0.24, 0.26, "Состояние B\nшест возвращается,\nугол +3°", C_ENV, fontsize=10.5, radius=0.02)
+    # датчик
+    _box(ax, (0.40, 0.37), 0.20, 0.26, "Датчик\n(только угол)", C_GREY, fontsize=11, radius=0.02)
+    _arrow(ax, (0.28, 0.73), (0.40, 0.55), C_GREY, lw=2)
+    _arrow(ax, (0.28, 0.27), (0.40, 0.45), C_GREY, lw=2)
+    # наблюдение справа
+    _box(ax, (0.72, 0.37), 0.24, 0.26, "Наблюдение\n«угол = +3°»", C_AGENT, fontsize=11, radius=0.02)
+    _arrow(ax, (0.60, 0.50), (0.72, 0.50), C_AGENT, lw=2.5)
+    ax.text(0.84, 0.28, "одно и то же —\nа действия нужны разные", ha="center", va="top", fontsize=10.5,
+            color=C_ACCENT, weight="bold")
+    ax.text(0.5, 0.06, "Лекарства: добавить в наблюдение историю (стек кадров, разность) или дать агенту память",
+            ha="center", va="center", fontsize=10.5, color=C_TEXT)
+    ax.text(0.5, 0.95, "Наблюдение ≠ состояние: частичная наблюдаемость (POMDP)", ha="center", va="center",
+            fontsize=13, weight="bold", color=C_TEXT)
+    fig.tight_layout()
+    fig.savefig(OUT / "observation_vs_state.png", dpi=DPI)
+    plt.close(fig)
+
+
+def action_spaces():
+    """Четыре типа пространств действий с примерами."""
+    cards = [
+        ("Discrete(n)", C_AGENT, "одно из n действий",
+         "4 направления в GridWorld\n18 кнопок Atari\nход в шахматах (с маской)"),
+        ("Box(low, high, shape)", C_ENV, "вектор вещественных чисел",
+         "момент на суставе робота\nугол руля и газ\nобъём заявки на бирже"),
+        ("MultiDiscrete([n1, n2])", C_PURPLE, "несколько дискретных сразу",
+         "кнопка + направление\nв Dota: «что» + «куда»"),
+        ("Dict / Tuple", C_REWARD, "составное действие",
+         "{move: Discrete(4),\n fire: Discrete(2)}"),
+    ]
+    fig, ax = plt.subplots(figsize=(13, 4.4))
+    ax.set_xlim(0, 1); ax.set_ylim(0, 1); ax.axis("off")
+    w, gap = 0.225, 0.028
+    for k, (name, color, sub, examples) in enumerate(cards):
+        x = 0.01 + k * (w + gap)
+        _box(ax, (x, 0.74), w, 0.2, name, color, fontsize=12, radius=0.02)
+        ax.add_patch(FancyBboxPatch((x, 0.05), w, 0.64, boxstyle="round,pad=0.01,rounding_size=0.02",
+                                    linewidth=1.5, edgecolor=color, facecolor="white"))
+        ax.text(x + w / 2, 0.60, sub, ha="center", va="center", fontsize=11, color=color, weight="bold")
+        ax.text(x + w / 2, 0.42, examples, ha="center", va="center", fontsize=10.5, color=C_TEXT, linespacing=1.5)
+        ax.text(x + w / 2, 0.12, ["табличные, DQN, PPO", "policy gradient, DDPG/TD3/SAC, PPO",
+                                  "чаще всего сводят к Discrete", "сводят к одному из двух"][k],
+                ha="center", va="center", fontsize=9.5, color=C_GREY, style="italic")
+    fig.tight_layout()
+    fig.savefig(OUT / "action_spaces.png", dpi=DPI)
+    plt.close(fig)
+
+
+def policy_types():
+    """Политика: таблица или функция, детерминированная или стохастическая."""
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4.2))
+    # слева: табличная политика
+    ax = axes[0]
+    ax.set_xlim(0, 1); ax.set_ylim(0, 1); ax.axis("off")
+    ax.text(0.5, 0.95, "Табличная: π[s, a]", ha="center", va="center", fontsize=13, weight="bold", color=C_AGENT)
+    rows = [("s = 0", [0.7, 0.1, 0.1, 0.1]), ("s = 1", [0.0, 0.0, 1.0, 0.0]), ("s = 2", [0.25, 0.25, 0.25, 0.25]),
+            ("...", None)]
+    ax.text(0.30, 0.82, "←", ha="center", fontsize=12); ax.text(0.45, 0.82, "↓", ha="center", fontsize=12)
+    ax.text(0.60, 0.82, "→", ha="center", fontsize=12); ax.text(0.75, 0.82, "↑", ha="center", fontsize=12)
+    y = 0.70
+    for name, probs in rows:
+        ax.text(0.12, y, name, ha="center", va="center", fontsize=11, family="monospace", color=C_TEXT)
+        if probs is not None:
+            for j, p in enumerate(probs):
+                ax.add_patch(Rectangle((0.24 + 0.15 * j, y - 0.05), 0.12, 0.10, facecolor=C_AGENT, alpha=0.15 + 0.85 * p,
+                                       edgecolor="white"))
+                ax.text(0.30 + 0.15 * j, y, f"{p:.2f}", ha="center", va="center", fontsize=9.5,
+                        color="white" if p > 0.5 else C_TEXT)
+        y -= 0.15
+    ax.text(0.5, 0.12, "s = 1: детерминированная строка\ns = 2: ещё ничего не выучено", ha="center", va="center",
+            fontsize=10, color=C_GREY)
+    # справа: параметрическая
+    ax = axes[1]
+    ax.set_xlim(0, 1); ax.set_ylim(0, 1); ax.axis("off")
+    ax.text(0.5, 0.95, "Параметрическая: π_θ(a | s) = softmax(f_θ(s))", ha="center", va="center", fontsize=13,
+            weight="bold", color=C_ENV)
+    _box(ax, (0.02, 0.42), 0.20, 0.16, "s\n(вектор,\nкартинка)", C_GREY, fontsize=9.5, radius=0.02)
+    _box(ax, (0.32, 0.36), 0.30, 0.28, "f_θ\nлинейная модель\nили нейросеть", C_ENV, fontsize=10.5, radius=0.02)
+    _box(ax, (0.72, 0.42), 0.26, 0.16, "softmax →\nπ(a | s)", C_AGENT, fontsize=10.5, radius=0.02)
+    _arrow(ax, (0.22, 0.50), (0.32, 0.50), C_GREY, lw=2)
+    _arrow(ax, (0.62, 0.50), (0.72, 0.50), C_GREY, lw=2)
+    ax.text(0.5, 0.20, "обучаем веса θ градиентом (неделя 5);\nобобщает на невиденные состояния",
+            ha="center", va="center", fontsize=10, color=C_GREY)
+    fig.tight_layout()
+    fig.savefig(OUT / "policy_types.png", dpi=DPI)
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     for fn in (agent_env_loop, ml_paradigms, rl_timeline, rl_origins, rl_taxonomy, mdp_gridworld, course_map, markov_chain, cem_loop,
-               env_anatomy, wrapper_onion, reward_types):
+               env_anatomy, wrapper_onion, reward_types, observation_vs_state, action_spaces, policy_types):
         fn()
         print("saved", fn.__name__)
