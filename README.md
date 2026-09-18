@@ -23,7 +23,7 @@
 <tr>
 <td>2</td>
 <td>08.09</td>
-<td>Постановка задачи RL, оценочные функции и уравнение Беллмана. Своя среда как MDP</td>
+<td>Ценность действия и уравнение Беллмана. Своя среда как MDP</td>
 <td><a href="02-environments/lecture/lecture.ipynb">лекция</a> · <a href="02-environments/seminar/seminar.ipynb">семинар</a> · <a href="02-environments/homework/homework.ipynb">дз</a></td>
 </tr>
 <tr>
