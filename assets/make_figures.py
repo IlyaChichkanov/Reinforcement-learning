@@ -813,6 +813,51 @@ def lottery_mdp():
     plt.close(fig)
 
 
+def vi_update():
+    """Одна строка кода value iteration и формула, которую она считает, часть в часть."""
+    fig, ax = plt.subplots(figsize=(13, 5.4))
+    ax.set_xlim(0, 13); ax.set_ylim(0, 5.4); ax.axis("off")
+    C_R, C_G, C_P = C_REWARD, C_PURPLE, C_ENV
+    ax.text(6.5, 5.05, "Одна итерация: формула и код — это одно и то же", ha="center", fontsize=14,
+            weight="bold", color=C_TEXT)
+
+    # формула по частям, чтобы куски стояли ровно над кусками кода
+    parts_formula = [(1.05, "$Q_{k+1}(s,a)\;=$", C_TEXT), (3.45, "$r(s,a)$", C_R),
+                     (5.0, "$+\;\\gamma$", C_G), (6.55, "$\\sum_{s'} p(s'|s,a)\\, V_k(s')$", C_P)]
+    parts_code = [(1.05, "Q_new", C_TEXT), (2.55, "=", C_TEXT), (3.45, "R", C_R),
+                  (4.55, "+", C_TEXT), (5.0, "GAMMA", C_G), (6.0, "*", C_TEXT), (6.75, "(P @ V)", C_P)]
+    for x, text, color in parts_formula:
+        ax.text(x, 4.15, text, ha="left", va="center", fontsize=16, color=color)
+    ax.add_patch(FancyBboxPatch((0.7, 2.85), 11.6, 0.85, boxstyle="round,pad=0.02,rounding_size=0.05",
+                                facecolor=C_LIGHT, linewidth=0))
+    for x, text, color in parts_code:
+        ax.text(x, 3.28, text, ha="left", va="center", fontsize=15, color=color,
+                family="monospace", weight="bold" if color != C_TEXT else "normal")
+    for x0, x1 in [(3.45, 3.45), (5.0, 5.0), (6.55, 6.75)]:
+        ax.plot([x0 + 0.15, x1 + 0.15], [3.95, 3.75], color=C_GREY, lw=1, ls=":")
+
+    ax.text(1.0, 2.35, "$V_k$ — лучшее, что обещает текущее приближение:", ha="left", fontsize=12, color=C_TEXT)
+    ax.text(8.0, 2.35, "V = Q.max(axis=1)", ha="left", fontsize=13, color=C_TEXT, family="monospace")
+    ax.text(8.0, 1.95, "(максимум по действиям — по второй оси)", ha="left", fontsize=10, color=C_GREY)
+
+    rows = [("R", "(12, 4)", "награда за шаг для каждой пары «клетка, действие»", C_R),
+            ("V", "(12,)", "по одному числу на клетку", C_P),
+            ("P", "(12, 4, 12)", "вероятности: куда попадём из каждой пары", C_P),
+            ("P @ V", "(12, 4)", "средняя ценность следующей клетки", C_P),
+            ("Q_new", "(12, 4)", "48 чисел — всё приближение целиком", C_TEXT)]
+    ax.text(1.0, 1.45, "формы массивов", ha="left", fontsize=12, weight="bold", color=C_AGENT)
+    for i, (name, shape, text, color) in enumerate(rows):
+        y = 1.05 - 0.26 * i
+        ax.text(1.0, y, name, ha="left", va="center", fontsize=11.5, color=color, family="monospace", weight="bold")
+        ax.text(2.6, y, shape, ha="left", va="center", fontsize=11.5, color=C_TEXT, family="monospace")
+        ax.text(4.6, y, text, ha="left", va="center", fontsize=11.5, color=C_GREY)
+    ax.text(12.3, 0.55, "одна строка пересчитывает\nвсе 48 чисел сразу", ha="right", va="center",
+            fontsize=12.5, color=C_ACCENT, weight="bold")
+    fig.tight_layout()
+    fig.savefig(OUT / "vi_update.png", dpi=DPI)
+    plt.close(fig)
+
+
 def bellman_family():
     """Одно уравнение — весь курс: какие методы что подставляют в уравнение Беллмана."""
     fig, ax = plt.subplots(figsize=(13, 6.2))
@@ -840,6 +885,6 @@ def bellman_family():
 if __name__ == "__main__":
     for fn in (agent_env_loop, ml_paradigms, rl_timeline, rl_origins, rl_taxonomy, mdp_gridworld, course_map, markov_chain, cem_loop,
                env_anatomy, wrapper_onion, reward_types, observation_vs_state, action_spaces, policy_types,
-               return_recursion, gridworld_rules, from_episodes_to_steps, q_choice, v_vs_q, two_equations, lottery_mdp, bellman_family):
+               return_recursion, gridworld_rules, from_episodes_to_steps, q_choice, v_vs_q, two_equations, vi_update, lottery_mdp, bellman_family):
         fn()
         print("saved", fn.__name__)

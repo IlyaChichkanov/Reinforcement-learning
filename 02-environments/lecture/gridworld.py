@@ -138,10 +138,11 @@ def greedy_policy(Q):
 
 def solve_q_star(P, R, gamma=GAMMA, tol=1e-12):
     """Оптимальная Q-функция. Как именно она считается — раздел 4 лекции; здесь просто «ответ»."""
-    Q = np.zeros(P.shape[:2])
+    Q = np.zeros(P.shape[:2])                    # начальное приближение: нули
     for _ in range(100_000):
-        Q_new = R + gamma * P @ Q.max(axis=1)
-        if np.abs(Q_new - Q).max() < tol:
+        V = Q.max(axis=1)                        # V[s] = max_a Q[s, a] — лучшее, что обещает приближение
+        Q_new = R + gamma * (P @ V)              # Q[s, a] = R[s, a] + γ Σ_s' P[s, a, s'] V[s']
+        if np.abs(Q_new - Q).max() < tol:        # перестало меняться — уравнение решено
             return Q_new
         Q = Q_new
     return Q
