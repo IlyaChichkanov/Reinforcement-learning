@@ -179,46 +179,106 @@ def rl_taxonomy():
     plt.close(fig)
 
 
+def _grid_world(ax, cell=1.0, x0=0.0, y0=0.0, numbers=False):
+    """Карта клетчатого мира 3 x 4: стена, выход +1, яма -1, старт. Возвращает функцию «центр клетки»."""
+    layout = ["...G", ".#.X", "S..."]
+    colors = {".": "#ffffff", "S": "#f2f2f2", "#": "#555555", "G": "#a9dfa9", "X": "#f3a9a9"}
+    for r, row in enumerate(layout):
+        for c, ch in enumerate(row):
+            x, y = x0 + c * cell, y0 + (len(layout) - 1 - r) * cell
+            ax.add_patch(Rectangle((x, y), cell, cell, facecolor=colors[ch], edgecolor="black", lw=1.2))
+            if ch == "G":
+                ax.text(x + cell / 2, y + cell / 2, "+1", ha="center", va="center", fontsize=17, weight="bold", color="#2f6b2f")
+            if ch == "X":
+                ax.text(x + cell / 2, y + cell / 2, "−1", ha="center", va="center", fontsize=17, weight="bold", color="#9b2f2f")
+            if ch == "S":
+                ax.text(x + cell / 2, y + cell / 2, "старт", ha="center", va="center", fontsize=10, color=C_GREY)
+            if numbers and ch != "#":
+                ax.text(x + 0.07 * cell, y + 0.88 * cell, str(r * 4 + c), ha="left", va="center", fontsize=9, color=C_GREY)
+    return lambda r, c: (x0 + (c + 0.5) * cell, y0 + (len(layout) - 0.5 - r) * cell)
+
+
 def mdp_gridworld():
-    # 4x4 gridworld: старт, стены, яма (-1), выход (+1)
-    n = 4
-    fig, ax = plt.subplots(figsize=(6.2, 6.2))
-    ax.set_xlim(0, n)
-    ax.set_ylim(0, n)
-    ax.set_aspect("equal")
-    ax.axis("off")
-    walls = {(1, 1), (2, 3)}
-    goal = (3, 3)
-    pit = (3, 1)
-    start = (0, 0)
-    for i in range(n):
-        for j in range(n):
-            color = "white"
-            if (i, j) in walls:
-                color = "#555555"
-            elif (i, j) == goal:
-                color = "#B5E0B5"
-            elif (i, j) == pit:
-                color = "#F4B6B6"
-            ax.add_patch(Rectangle((i, j), 1, 1, facecolor=color, edgecolor=C_GREY, lw=1.5))
-    ax.text(goal[0] + 0.5, goal[1] + 0.5, "выход\n+1", ha="center", va="center", fontsize=13, weight="bold", color=C_ENV)
-    ax.text(pit[0] + 0.5, pit[1] + 0.5, "яма\n-1", ha="center", va="center", fontsize=13, weight="bold", color=C_ACCENT)
-    ax.text(start[0] + 0.5, start[1] + 0.5, "старт", ha="center", va="center", fontsize=12, color=C_TEXT)
-    ax.scatter([start[0] + 0.5], [start[1] + 0.25], s=380, color=C_AGENT, zorder=3)
-    # действия из клетки (1,2)
-    cx, cy = 1.5, 2.5
-    for dx, dy, lab in ((0.42, 0, "→"), (-0.42, 0, "←"), (0, 0.42, "↑"), (0, -0.42, "↓")):
-        _arrow(ax, (cx, cy), (cx + dx, cy + dy), C_AGENT, lw=2)
-    ax.text(cx + 0.3, cy + 0.3, "a", ha="center", fontsize=12, color=C_AGENT, weight="bold")
-    ax.text(2.0, -0.3,
-            "Состояние = клетка, действие = одно из 4 направлений.\n"
-            "Награда: −0.04 за каждый шаг (чтобы не гулять вечно),\n"
-            "+1 за выход, −1 за яму. Переход «скользкий»: с p = 0.8\n"
-            "идём куда хотели, с p = 0.1 — в каждую из боковых сторон.",
-            ha="center", va="top", fontsize=9.5, color=C_TEXT)
-    ax.set_ylim(-1.5, n)
+    """Клетчатый мир: состояние — клетка, действие — направление, ветер сносит вбок."""
+    fig, ax = plt.subplots(figsize=(7.2, 6.2))
+    ax.set_xlim(-0.2, 4.2); ax.set_ylim(-1.9, 3.3); ax.axis("off"); ax.set_aspect("equal")
+    center = _grid_world(ax)
+    x, y = center(2, 1)                                       # агент в нижнем ряду
+    ax.scatter([x], [y - 0.16], s=340, color=C_AGENT, zorder=3)
+    for dx, dy in [(0.3, 0), (-0.3, 0), (0, 0.3), (0, -0.3)]:
+        _arrow(ax, (x, y - 0.16), (x + dx, y - 0.16 + dy), C_AGENT, lw=1.8)
+    ax.text(x + 0.40, y + 0.12, "$a$", fontsize=14, color=C_AGENT, weight="bold")
+    ax.text(2.0, -0.55, "Состояние — клетка, действие — одно из четырёх направлений.", ha="center", fontsize=11.5, color=C_TEXT)
+    ax.text(2.0, -0.95, "Награда: −0.04 за каждый шаг (чтобы не гулять вечно), +1 за выход, −1 за яму.", ha="center", fontsize=11.5, color=C_TEXT)
+    ax.text(2.0, -1.35, "Ветер: с вероятностью 0.8 идём куда хотели, по 0.1 — вбок;\nв стену или за край — остаёмся на месте.", ha="center", fontsize=11.5, color=C_TEXT)
     fig.tight_layout()
     fig.savefig(OUT / "mdp_gridworld.png", dpi=DPI)
+    plt.close(fig)
+
+
+def gridworld_rules():
+    """Правила мира лекции 2 крупно: карта с номерами клеток, легенда и веер ветра."""
+    fig, ax = plt.subplots(figsize=(12.5, 5.4))
+    ax.set_xlim(0, 12.5); ax.set_ylim(-0.5, 5.0); ax.axis("off"); ax.set_aspect("equal")
+    _grid_world(ax, cell=1.15, x0=0.2, y0=0.9, numbers=True)
+    ax.text(2.5, 4.65, "Мир: 3 × 4 клетки", ha="center", fontsize=13.5, weight="bold", color=C_TEXT)
+    ax.text(2.5, 0.45, "эпизод кончается в зелёной или красной клетке", ha="center", fontsize=11, color=C_GREY)
+    lines = [
+        ("Состояние", "номер клетки, 0…11 (клетка 5 — стена)"),
+        ("Действие", "← ↓ → ↑ — попытка шагнуть в эту сторону"),
+        ("Награда", "−0.04 за шаг, +1 за выход, −1 за яму"),
+        ("Ветер", "0.8 — куда просили, по 0.1 — вбок"),
+        ("Стена и край", "шаг в них оставляет агента на месте"),
+    ]
+    for i, (name, text) in enumerate(lines):
+        y = 4.6 - 0.6 * i
+        ax.text(5.0, y, name, ha="left", va="center", fontsize=12.5, weight="bold", color=C_AGENT)
+        ax.text(7.05, y, text, ha="left", va="center", fontsize=12.5, color=C_TEXT)
+    bx, by = 8.6, 0.2
+    ax.text(bx, by + 1.38, "просим «вверх» — а получается так:", ha="center", fontsize=11.5, color=C_TEXT, weight="bold")
+    ax.scatter([bx], [by], s=300, color=C_AGENT, zorder=3)
+    for dx, dy, p, ha, off in [(0.0, 1.05, "0.8", "left", (0.22, -0.2)), (-1.25, 0.3, "0.1", "right", (-0.18, 0.06)),
+                               (1.25, 0.3, "0.1", "left", (0.18, 0.06))]:
+        _arrow(ax, (bx, by + 0.12), (bx + dx, by + 0.12 + dy), C_ENV, lw=2.4)
+        ax.text(bx + dx + off[0], by + 0.12 + dy + off[1], p, ha=ha, va="center", fontsize=12.5, color=C_ENV, weight="bold")
+    fig.tight_layout()
+    fig.savefig(OUT / "gridworld_rules.png", dpi=DPI)
+    plt.close(fig)
+
+
+def v_vs_q():
+    """Разница между V и Q на том же лабиринте: одно число в клетке против четырёх."""
+    import sys
+    sys.path.insert(0, str(OUT.parent / "02-environments" / "lecture"))
+    from gridworld import GridWorld, mdp_matrices, solve_q_star, ARROWS          # noqa: E402
+    from gridworld_plots import plot_values, plot_q                              # noqa: E402
+
+    env = GridWorld()
+    P, R = mdp_matrices(env)
+    Q = solve_q_star(P, R)
+    V = Q.max(axis=1)
+    fig = plt.figure(figsize=(13, 5.8))
+    gs = fig.add_gridspec(2, 2, height_ratios=[3.0, 1.15], hspace=0.22, wspace=0.12)
+    ax_v, ax_q = fig.add_subplot(gs[0, 0]), fig.add_subplot(gs[0, 1])
+    plot_values(V, env, ax=ax_v, title="$V(s)$ — насколько хороша клетка")
+    plot_q(Q, env, ax=ax_q, title="$Q(s, a)$ — насколько хорош каждый шаг из клетки")
+    cell = 9
+    best = int(Q[cell].argmax())
+    ax_text = fig.add_subplot(gs[1, :]); ax_text.axis("off")
+    ax_text.set_xlim(0, 1); ax_text.set_ylim(0, 1)
+    ax_text.text(0.25, 0.92, "одно число на клетку", ha="center", fontsize=12, color=C_AGENT, weight="bold")
+    ax_text.text(0.25, 0.55, "«сколько соберу, если я здесь\nи дальше играю хорошо»", ha="center", fontsize=11.5, color=C_TEXT)
+    ax_text.text(0.75, 0.92, "четыре числа на клетку", ha="center", fontsize=12, color=C_AGENT, weight="bold")
+    ax_text.text(0.75, 0.55, "«сколько соберу, если сделаю именно это действие,\nа дальше играю хорошо»", ha="center",
+                 fontsize=11.5, color=C_TEXT)
+    link = (f"Связь: $V(s) = \\max_a Q(s,a)$. В клетке {cell}: "
+            + ", ".join(f"{ARROWS[a]} {Q[cell, a]:+.2f}" for a in range(4))
+            + f"   →   лучшее {ARROWS[best]} {Q[cell, best]:+.2f} = $V$({cell})")
+    ax_text.text(0.5, 0.22, link, ha="center", fontsize=12, color=C_TEXT)
+    ax_text.text(0.5, -0.02, "Из $Q$ стратегия получается сразу: выбирай наибольшее число. "
+                            "Из $V$ — только если знаешь, куда ведут действия.",
+                 ha="center", fontsize=12.5, color=C_ACCENT, weight="bold")
+    fig.savefig(OUT / "v_vs_q.png", dpi=DPI, bbox_inches="tight", pad_inches=0.2)
     plt.close(fig)
 
 
@@ -595,44 +655,111 @@ def policy_types():
 
 
 def return_recursion():
-    """Return одного эпизода озера: награды, веса γ^t и подсчёт G_t с конца по тождеству G_t = R_t + γ G_{t+1}."""
+    """Return одного эпизода клетчатого мира: награды, веса γ^t и подсчёт G_t с конца."""
     gamma = 0.95
-    cells = [0, 4, 8, 9, 13, 14, 15]
-    rewards = [0, 0, 0, 0, 0, 1]
+    cells = [8, 4, 0, 1, 2, 3]
+    rewards = [-0.04, -0.04, -0.04, -0.04, 0.96]          # последний шаг: −0.04 за шаг и +1 за выход
     G = [0.0] * len(rewards)
     for t in range(len(rewards) - 1, -1, -1):
         G[t] = rewards[t] + (gamma * G[t + 1] if t + 1 < len(rewards) else 0.0)
-    fig, ax = plt.subplots(figsize=(12.5, 4.6))
+    fig, ax = plt.subplots(figsize=(12.5, 4.4))
     ax.set_xlim(0, 1); ax.set_ylim(0, 1); ax.axis("off")
-    xs = np.linspace(0.06, 0.94, len(cells))
+    xs = np.linspace(0.08, 0.92, len(cells))
     for i, (x, c) in enumerate(zip(xs, cells)):
-        color = C_ENV if c == 15 else C_AGENT
-        ax.add_patch(FancyBboxPatch((x - 0.04, 0.72), 0.08, 0.16, boxstyle="round,pad=0.01,rounding_size=0.02", linewidth=0, facecolor=color))
-        ax.text(x, 0.80, f"клетка\n{c}" + (" (G)" if c == 15 else ""), ha="center", va="center", fontsize=9.5, color="white", weight="bold")
+        color = C_ENV if c == 3 else C_AGENT
+        ax.add_patch(FancyBboxPatch((x - 0.045, 0.74), 0.09, 0.16, boxstyle="round,pad=0.01,rounding_size=0.02",
+                                    linewidth=0, facecolor=color))
+        ax.text(x, 0.82, f"клетка\n{c}" + (" (+1)" if c == 3 else ""), ha="center", va="center",
+                fontsize=9.5, color="white", weight="bold")
         if i < len(rewards):
-            _arrow(ax, (x + 0.045, 0.80), (xs[i + 1] - 0.045, 0.80), C_GREY, lw=1.5)
-            ax.text((x + xs[i + 1]) / 2, 0.66, f"$R_{i}$ = {rewards[i]}", ha="center", va="center", fontsize=10.5,
-                    color=C_REWARD if rewards[i] else C_GREY, weight="bold" if rewards[i] else "normal")
-            ax.text((x + xs[i + 1]) / 2, 0.57, f"вес $\\gamma^{i}$ = {gamma ** i:.2f}", ha="center", va="center", fontsize=8.5, color=C_GREY)
-    ax.text(0.5, 0.94, "один эпизод на озере: шаг $t$ = 0, 1, …, 5", ha="center", va="center", fontsize=12, color=C_TEXT)
-    # G_t считаем с конца
-    ax.plot([0.02, 0.98], [0.47, 0.47], color=C_GREY, lw=0.8, ls=":")
+            _arrow(ax, (x + 0.05, 0.82), (xs[i + 1] - 0.05, 0.82), C_GREY, lw=1.5)
+            ax.text((x + xs[i + 1]) / 2, 0.67, f"$r_{i}$ = {rewards[i]:+.2f}", ha="center", va="center",
+                    fontsize=10.5, color=C_REWARD if rewards[i] > 0 else C_GREY,
+                    weight="bold" if rewards[i] > 0 else "normal")
+            ax.text((x + xs[i + 1]) / 2, 0.58, f"вес $\\gamma^{i}$ = {gamma ** i:.2f}", ha="center", va="center",
+                    fontsize=8.5, color=C_GREY)
+    ax.text(0.5, 0.96, "один эпизод: из старта вверх и направо к выходу", ha="center", va="center",
+            fontsize=12, color=C_TEXT)
+    ax.plot([0.02, 0.98], [0.49, 0.49], color=C_GREY, lw=0.8, ls=":")
     for i in range(len(rewards)):
         xm = (xs[i] + xs[i + 1]) / 2
-        ax.add_patch(FancyBboxPatch((xm - 0.05, 0.28), 0.10, 0.12, boxstyle="round,pad=0.01,rounding_size=0.02",
+        ax.add_patch(FancyBboxPatch((xm - 0.055, 0.29), 0.11, 0.12, boxstyle="round,pad=0.01,rounding_size=0.02",
                                     linewidth=0, facecolor=C_ACCENT if i == 0 else C_LIGHT))
-        ax.text(xm, 0.34, f"$G_{i}$ = {G[i]:.3f}", ha="center", va="center", fontsize=10, color="white" if i == 0 else C_TEXT, weight="bold")
+        ax.text(xm, 0.35, f"$G_{i}$ = {G[i]:+.3f}", ha="center", va="center", fontsize=10,
+                color="white" if i == 0 else C_TEXT, weight="bold")
         if i + 1 < len(rewards):
             xn = (xs[i + 1] + xs[i + 2]) / 2
-            _arrow(ax, (xn - 0.055, 0.34), (xm + 0.055, 0.34), C_ACCENT, lw=1.3)
-            ax.text((xm + xn) / 2, 0.22, f"× $\\gamma$ + $R_{i}$", ha="center", va="center", fontsize=8.5, color=C_ACCENT)
-    ax.text(0.5, 0.10, "return $G_t$ — сумма наград с шага $t$ с весами $\\gamma^k$. Считаем справа налево:  "
-            "$G_5 = R_5 = 1$,  $G_4 = R_4 + \\gamma G_5 = 0.95$, …  — в общем виде  $G_t = R_t + \\gamma\\, G_{t+1}$",
-            ha="center", va="center", fontsize=10.5, color=C_TEXT)
-    ax.text(0.5, 0.02, "$G_0 = 0 + \\gamma\\cdot 0 + \\gamma^2\\cdot 0 + \\gamma^3\\cdot 0 + \\gamma^4\\cdot 0 + \\gamma^5\\cdot 1 = 0.774$: "
-            "награда, полученная через 6 шагов, «стоит» сегодня 0.774", ha="center", va="center", fontsize=10, color=C_GREY)
+            _arrow(ax, (xn - 0.06, 0.35), (xm + 0.06, 0.35), C_ACCENT, lw=1.3)
+            ax.text((xm + xn) / 2, 0.23, f"× $\\gamma$ + $r_{i}$", ha="center", va="center", fontsize=8.5, color=C_ACCENT)
+    ax.text(0.5, 0.11, "return $G_t$ — сумма наград с шага $t$ с весами $\\gamma^k$. Считаем справа налево:  "
+            "$G_4 = r_4 = 0.96$,  $G_3 = r_3 + \\gamma G_4 = 0.87$, …", ha="center", va="center", fontsize=11, color=C_TEXT)
+    ax.text(0.5, 0.02, "в общем виде   $G_t = r_t + \\gamma\\, G_{t+1}$", ha="center", va="center",
+            fontsize=13, color=C_ACCENT, weight="bold")
     fig.tight_layout()
     fig.savefig(OUT / "return_recursion.png", dpi=DPI)
+    plt.close(fig)
+
+
+def from_episodes_to_steps():
+    """Мост от лекции 1: Cross-Entropy оценивает эпизод целиком, а хочется оценивать каждый шаг."""
+    fig, ax = plt.subplots(figsize=(13, 4.8))
+    ax.set_xlim(0, 13); ax.set_ylim(0, 4.8); ax.axis("off")
+    ax.text(3.0, 4.55, "Лекция 1: Cross-Entropy", ha="center", fontsize=13.5, weight="bold", color=C_TEXT)
+    steps = [("сыграть 200\nэпизодов", C_AGENT), ("отобрать 30%\nлучших", C_ENV), ("повторять их\nдействия", C_PURPLE)]
+    for i, (text, color) in enumerate(steps):
+        _box(ax, (0.3 + i * 1.95, 3.2), 1.6, 0.95, text, color, fontsize=10.5, radius=0.02)
+        if i < 2:
+            _arrow(ax, (1.95 + i * 1.95, 3.67), (2.2 + i * 1.95, 3.67), C_GREY, lw=1.8)
+    ax.plot([5.4, 5.7, 5.7, 1.1], [3.67, 3.67, 2.82, 2.82], color=C_GREY, lw=1.5)
+    _arrow(ax, (1.1, 2.82), (1.1, 3.15), C_GREY, lw=1.5)
+    ax.text(3.4, 2.62, "и так 25 раз", ha="center", fontsize=10.5, color=C_GREY)
+    ax.text(3.0, 2.3, "оценка эпизода — одно число: дошёл или не дошёл", ha="center", fontsize=11, color=C_GREY)
+    # правая часть: проблема
+    ax.text(9.6, 4.55, "Что с этим не так", ha="center", fontsize=13.5, weight="bold", color=C_TEXT)
+    n = 24
+    for i in range(n):
+        bad = i == 17
+        ax.add_patch(Rectangle((6.5 + i * 0.26, 3.35), 0.22, 0.6, facecolor=C_ACCENT if bad else C_ENV,
+                               edgecolor="none"))
+    ax.text(6.5 + 17 * 0.26 + 0.11, 4.12, "одна ошибка", ha="center", fontsize=10, color=C_ACCENT, weight="bold")
+    ax.text(9.6, 3.0, "эпизод = 100 шагов. Он «плохой» — выбрасываем целиком,\nвместе с 99 верными шагами",
+            ha="center", fontsize=11, color=C_TEXT)
+    _arrow(ax, (9.6, 2.5), (9.6, 1.85), C_ACCENT, lw=2.2)
+    _box(ax, (6.3, 0.75), 6.6, 1.0, "Хотим оценивать не эпизод, а шаг:\nнасколько хорошо сделать это действие в этой клетке?",
+         C_ACCENT, fontsize=12, radius=0.02)
+    ax.text(3.0, 1.25, "сегодня: как такую оценку\nпосчитать и как из неё\nсразу получить стратегию",
+            ha="center", fontsize=11.5, color=C_TEXT)
+    fig.tight_layout()
+    fig.savefig(OUT / "from_episodes_to_steps.png", dpi=DPI)
+    plt.close(fig)
+
+
+def two_equations():
+    """Два вопроса — два уравнения Беллмана: max по действиям против усреднения по стратегии."""
+    fig, ax = plt.subplots(figsize=(13, 5.0))
+    ax.set_xlim(0, 13); ax.set_ylim(0, 5.0); ax.axis("off")
+    blocks = [
+        (0.3, C_ACCENT, "Вопрос 1: как ходить лучше всего?",
+         "$Q^*(s,a) = \\mathbb{E}\\,[\\,r + \\gamma\\, \\max_{a'} Q^*(s',a')\\,]$",
+         "$\\max$: дальше агент выберет\nсамое выгодное действие",
+         "ответ: оптимальная стратегия\n$\\pi^*(s) = \\arg\\max_a Q^*(s,a)$"),
+        (6.8, C_AGENT, "Вопрос 2: насколько хороша стратегия $\\pi$?",
+         "$V^\\pi(s) = \\sum_a \\pi(a|s)\\, \\mathbb{E}\\,[\\,r + \\gamma\\, V^\\pi(s')\\,]$",
+         "$\\sum_a \\pi(a|s)$: дальше агент\nсделает то, что велит $\\pi$",
+         "ответ: оценка стратегии —\nсравнить две, улучшить одну"),
+    ]
+    for x, color, head, formula, note, answer in blocks:
+        _box(ax, (x, 4.05), 5.9, 0.75, head, color, fontsize=12.5, radius=0.02)
+        ax.add_patch(FancyBboxPatch((x, 2.85), 5.9, 1.0, boxstyle="round,pad=0.02,rounding_size=0.03",
+                                    facecolor=C_LIGHT, linewidth=0))
+        ax.text(x + 2.95, 3.35, formula, ha="center", va="center", fontsize=14, color=C_TEXT)
+        ax.text(x + 2.95, 2.25, note, ha="center", va="center", fontsize=11, color=color)
+        _arrow(ax, (x + 2.95, 1.85), (x + 2.95, 1.35), C_GREY, lw=1.8)
+        ax.text(x + 2.95, 0.95, answer, ha="center", va="center", fontsize=11.5, color=C_TEXT)
+    ax.text(6.5, 0.15, "Отличие ровно одно:   $\\max_a$   против   $\\sum_a \\pi(a|s)$", ha="center", va="center",
+            fontsize=13, color=C_ACCENT, weight="bold")
+    fig.tight_layout()
+    fig.savefig(OUT / "two_equations.png", dpi=DPI)
     plt.close(fig)
 
 
@@ -713,6 +840,6 @@ def bellman_family():
 if __name__ == "__main__":
     for fn in (agent_env_loop, ml_paradigms, rl_timeline, rl_origins, rl_taxonomy, mdp_gridworld, course_map, markov_chain, cem_loop,
                env_anatomy, wrapper_onion, reward_types, observation_vs_state, action_spaces, policy_types,
-               return_recursion, q_choice, lottery_mdp, bellman_family):
+               return_recursion, gridworld_rules, from_episodes_to_steps, q_choice, v_vs_q, two_equations, lottery_mdp, bellman_family):
         fn()
         print("saved", fn.__name__)
