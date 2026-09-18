@@ -595,72 +595,94 @@ def policy_types():
 
 
 def return_recursion():
-    """Лента наград и ключевое тождество G_t = R_t + γ G_{t+1}."""
-    fig, ax = plt.subplots(figsize=(11, 3.6))
+    """Return одного эпизода озера: награды, веса γ^t и подсчёт G_t с конца по тождеству G_t = R_t + γ G_{t+1}."""
+    gamma = 0.95
+    cells = [0, 4, 8, 9, 13, 14, 15]
+    rewards = [0, 0, 0, 0, 0, 1]
+    G = [0.0] * len(rewards)
+    for t in range(len(rewards) - 1, -1, -1):
+        G[t] = rewards[t] + (gamma * G[t + 1] if t + 1 < len(rewards) else 0.0)
+    fig, ax = plt.subplots(figsize=(12.5, 4.6))
     ax.set_xlim(0, 1); ax.set_ylim(0, 1); ax.axis("off")
-    labels = ["$R_t$", "$R_{t+1}$", "$R_{t+2}$", "$R_{t+3}$", "$\\ldots$"]
-    weights = ["$1$", "$\\gamma$", "$\\gamma^2$", "$\\gamma^3$", ""]
-    xs = np.linspace(0.08, 0.92, len(labels))
-    for i, (x, lab, w) in enumerate(zip(xs, labels, weights)):
-        color = C_REWARD if i == 0 else C_AGENT
-        if i < 4:
-            ax.add_patch(FancyBboxPatch((x - 0.06, 0.50), 0.12, 0.2, boxstyle="round,pad=0.01,rounding_size=0.02",
-                                        linewidth=0, facecolor=color, alpha=1.0 if i == 0 else 0.9 - 0.15 * i))
-            ax.text(x, 0.60, lab, ha="center", va="center", fontsize=15, color="white", weight="bold")
-            ax.text(x, 0.40, "вес " + w, ha="center", va="center", fontsize=11, color=C_GREY)
-        else:
-            ax.text(x, 0.60, lab, ha="center", va="center", fontsize=18, color=C_GREY)
-    # скобки
-    ax.plot([xs[0] - 0.07, xs[-1] + 0.05], [0.84, 0.84], color=C_TEXT, lw=1.5)
-    ax.text((xs[0] + xs[-1]) / 2, 0.92, "$G_t$ — return с шага $t$", ha="center", va="center", fontsize=13, color=C_TEXT)
-    ax.plot([xs[1] - 0.07, xs[-1] + 0.05], [0.24, 0.24], color=C_AGENT, lw=1.5)
-    ax.text((xs[1] + xs[-1]) / 2, 0.16, "$\\gamma \\cdot G_{t+1}$ — всё то же самое, но с шага $t+1$ и на один множитель $\\gamma$ дешевле",
-            ha="center", va="center", fontsize=11.5, color=C_AGENT)
-    ax.text(0.5, 0.03, "$G_t = R_t + \\gamma\\, G_{t+1}$", ha="center", va="center", fontsize=16, weight="bold", color=C_ACCENT)
+    xs = np.linspace(0.06, 0.94, len(cells))
+    for i, (x, c) in enumerate(zip(xs, cells)):
+        color = C_ENV if c == 15 else C_AGENT
+        ax.add_patch(FancyBboxPatch((x - 0.04, 0.72), 0.08, 0.16, boxstyle="round,pad=0.01,rounding_size=0.02", linewidth=0, facecolor=color))
+        ax.text(x, 0.80, f"клетка\n{c}" + (" (G)" if c == 15 else ""), ha="center", va="center", fontsize=9.5, color="white", weight="bold")
+        if i < len(rewards):
+            _arrow(ax, (x + 0.045, 0.80), (xs[i + 1] - 0.045, 0.80), C_GREY, lw=1.5)
+            ax.text((x + xs[i + 1]) / 2, 0.66, f"$R_{i}$ = {rewards[i]}", ha="center", va="center", fontsize=10.5,
+                    color=C_REWARD if rewards[i] else C_GREY, weight="bold" if rewards[i] else "normal")
+            ax.text((x + xs[i + 1]) / 2, 0.57, f"вес $\\gamma^{i}$ = {gamma ** i:.2f}", ha="center", va="center", fontsize=8.5, color=C_GREY)
+    ax.text(0.5, 0.94, "один эпизод на озере: шаг $t$ = 0, 1, …, 5", ha="center", va="center", fontsize=12, color=C_TEXT)
+    # G_t считаем с конца
+    ax.plot([0.02, 0.98], [0.47, 0.47], color=C_GREY, lw=0.8, ls=":")
+    for i in range(len(rewards)):
+        xm = (xs[i] + xs[i + 1]) / 2
+        ax.add_patch(FancyBboxPatch((xm - 0.05, 0.28), 0.10, 0.12, boxstyle="round,pad=0.01,rounding_size=0.02",
+                                    linewidth=0, facecolor=C_ACCENT if i == 0 else C_LIGHT))
+        ax.text(xm, 0.34, f"$G_{i}$ = {G[i]:.3f}", ha="center", va="center", fontsize=10, color="white" if i == 0 else C_TEXT, weight="bold")
+        if i + 1 < len(rewards):
+            xn = (xs[i + 1] + xs[i + 2]) / 2
+            _arrow(ax, (xn - 0.055, 0.34), (xm + 0.055, 0.34), C_ACCENT, lw=1.3)
+            ax.text((xm + xn) / 2, 0.22, f"× $\\gamma$ + $R_{i}$", ha="center", va="center", fontsize=8.5, color=C_ACCENT)
+    ax.text(0.5, 0.10, "return $G_t$ — сумма наград с шага $t$ с весами $\\gamma^k$. Считаем справа налево:  "
+            "$G_5 = R_5 = 1$,  $G_4 = R_4 + \\gamma G_5 = 0.95$, …  — в общем виде  $G_t = R_t + \\gamma\\, G_{t+1}$",
+            ha="center", va="center", fontsize=10.5, color=C_TEXT)
+    ax.text(0.5, 0.02, "$G_0 = 0 + \\gamma\\cdot 0 + \\gamma^2\\cdot 0 + \\gamma^3\\cdot 0 + \\gamma^4\\cdot 0 + \\gamma^5\\cdot 1 = 0.774$: "
+            "награда, полученная через 6 шагов, «стоит» сегодня 0.774", ha="center", va="center", fontsize=10, color=C_GREY)
     fig.tight_layout()
     fig.savefig(OUT / "return_recursion.png", dpi=DPI)
     plt.close(fig)
 
 
-def bellman_backup():
-    """Backup-диаграммы: как V^π(s) и Q^π(s, a) выражаются через соседей."""
-    fig, axes = plt.subplots(1, 2, figsize=(12, 4.6))
-    for ax, kind in zip(axes, ("V", "Q")):
-        ax.set_xlim(0, 1); ax.set_ylim(0, 1); ax.axis("off")
-        if kind == "V":
-            ax.set_title("$V^\\pi(s) = \\sum_a \\pi(a|s) \\sum_{s'} P(s'|s,a)\\,[\\,r + \\gamma V^\\pi(s')\\,]$", fontsize=12.5, color=C_TEXT)
-            ax.scatter([0.5], [0.88], s=700, color=C_AGENT, zorder=3); ax.text(0.5, 0.88, "s", ha="center", va="center", color="white", fontsize=13, weight="bold")
-            acts = [0.25, 0.5, 0.75]
-            for xa in acts:
-                _arrow(ax, (0.5, 0.84), (xa, 0.62), C_GREY, lw=1.5)
-                ax.scatter([xa], [0.58], s=220, color=C_TEXT, zorder=3)
-            ax.text(0.82, 0.74, "$\\pi(a|s)$: агент\nвыбирает действие", fontsize=10, color=C_TEXT, va="center")
-            for xa in acts:
-                for dx in (-0.08, 0.08):
-                    _arrow(ax, (xa, 0.54), (xa + dx, 0.30), C_ENV, lw=1.5)
-                    ax.scatter([xa + dx], [0.25], s=420, color=C_ENV, zorder=3)
-                    ax.text(xa + dx, 0.25, "s'", ha="center", va="center", color="white", fontsize=10, weight="bold")
-            ax.text(0.86, 0.42, "$P(s'|s,a)$: среда\nвыбирает исход,\nвыдаёт $r$", fontsize=10, color=C_ENV, va="center")
-            ax.text(0.5, 0.06, "ценность $s$: усреднить по действиям и исходам\nнаграду + $\\gamma$ · ценность соседа",
-                    ha="center", va="center", fontsize=10.5, color=C_GREY)
-        else:
-            ax.set_title("$Q^\\pi(s,a) = \\sum_{s'} P(s'|s,a)\\,[\\,r + \\gamma \\sum_{a'} \\pi(a'|s')\\,Q^\\pi(s',a')\\,]$", fontsize=12.5, color=C_TEXT)
-            ax.scatter([0.5], [0.88], s=260, color=C_TEXT, zorder=3)
-            ax.text(0.58, 0.88, "(s, a)", fontsize=12, va="center", color=C_TEXT)
-            nxt = [0.3, 0.7]
-            for xn in nxt:
-                _arrow(ax, (0.5, 0.84), (xn, 0.64), C_ENV, lw=1.5)
-                ax.scatter([xn], [0.60], s=420, color=C_ENV, zorder=3)
-                ax.text(xn, 0.60, "s'", ha="center", va="center", color="white", fontsize=10, weight="bold")
-                for dx in (-0.09, 0.0, 0.09):
-                    _arrow(ax, (xn, 0.56), (xn + dx, 0.32), C_GREY, lw=1.3)
-                    ax.scatter([xn + dx], [0.28], s=200, color=C_TEXT, zorder=3)
-            ax.text(0.86, 0.72, "$P(s'|s,a)$, $r$", fontsize=10, color=C_ENV, va="center")
-            ax.text(0.86, 0.42, "$\\pi(a'|s')$", fontsize=10, color=C_TEXT, va="center")
-            ax.text(0.5, 0.06, "ценность пары (s, a): награда + $\\gamma$ · ценность того,\nчто агент сделает дальше",
-                    ha="center", va="center", fontsize=10.5, color=C_GREY)
+def q_choice():
+    """Принцип оптимальности Беллмана на пальцах: известны Q*(s, a) для трёх действий — выбираем наибольшее."""
+    fig, ax = plt.subplots(figsize=(9, 4.2))
+    ax.set_xlim(0, 1); ax.set_ylim(0, 1); ax.axis("off")
+    ax.scatter([0.16], [0.56], s=2600, color=C_AGENT, zorder=3)
+    ax.text(0.16, 0.56, "s", ha="center", va="center", fontsize=18, color="white", weight="bold", zorder=4)
+    items = [(0.86, "a = 0", "$Q^*(s, 0) = +3$", "больше +3 отсюда не набрать", C_GREY),
+             (0.56, "a = 1", "$Q^*(s, 1) = +10$", "есть стратегия, которая набирает +10", C_ACCENT),
+             (0.26, "a = 2", "$Q^*(s, 2) = -1$", "в среднем потеряем 1", C_GREY)]
+    for y, name, q, note, color in items:
+        _arrow(ax, (0.21, 0.56 + (y - 0.56) * 0.25), (0.36, y), color, lw=3.5 if color == C_ACCENT else 1.8)
+        ax.text(0.28, 0.56 + (y - 0.56) * 0.62 + 0.04, name, ha="center", va="center", fontsize=10, color=color)
+        _box(ax, (0.37, y - 0.08), 0.24, 0.16, q, color, fontsize=13, radius=0.02)
+        ax.text(0.64, y, note, ha="left", va="center", fontsize=10.5, color=C_TEXT if color == C_ACCENT else C_GREY)
+    ax.text(0.5, 0.0, "жадный выбор $\\pi^*(s) = \\arg\\max_a Q^*(s, a)$: здесь $a = 1$.\nЛучше по определению $Q^*$ не бывает.",
+            ha="center", va="bottom", fontsize=11, color=C_ACCENT, weight="bold")
     fig.tight_layout()
-    fig.savefig(OUT / "bellman_backup.png", dpi=DPI)
+    fig.savefig(OUT / "q_choice.png", dpi=DPI)
+    plt.close(fig)
+
+
+def lottery_mdp():
+    """MDP «Колобок и лотерея» из учебника ШАД: одно состояние, два действия, редкий большой выигрыш."""
+    fig, ax = plt.subplots(figsize=(10, 4.6))
+    ax.set_xlim(0, 1); ax.set_ylim(0, 1); ax.axis("off")
+    ax.scatter([0.16], [0.60], s=5200, color=C_AGENT, zorder=3)
+    ax.text(0.16, 0.60, "s:\nу киоска", ha="center", va="center", fontsize=12, color="white", weight="bold", zorder=4)
+    # действие «купить билет» — точка, из которой среда выбирает исход
+    ax.scatter([0.46], [0.60], s=380, color=C_TEXT, zorder=3)
+    _arrow(ax, (0.215, 0.60), (0.435, 0.60), C_REWARD, lw=3)
+    ax.text(0.33, 0.68, "«купить билет»\n$r = -10$", ha="center", va="center", fontsize=11, color=C_REWARD, weight="bold")
+    ax.add_patch(FancyArrowPatch((0.46, 0.635), (0.185, 0.675), arrowstyle="-|>", mutation_scale=22, lw=2.2, color=C_ENV,
+                                 connectionstyle="arc3,rad=0.6"))
+    ax.text(0.34, 0.92, "с вероятностью $p$ — проиграл,\nснова у киоска ($s' = s$)", ha="center", va="center", fontsize=10, color=C_ENV)
+    _arrow(ax, (0.475, 0.575), (0.66, 0.40), C_ENV, lw=2.2)
+    ax.text(0.62, 0.55, "с вероятностью $1-p$ —\nвыигрыш", ha="center", va="center", fontsize=10, color=C_ENV)
+    _box(ax, (0.67, 0.30), 0.28, 0.16, "выигрыш: +1000\n(эпизод окончен)", C_ENV, fontsize=11.5, radius=0.02)
+    # действие «не покупать»
+    _arrow(ax, (0.16, 0.48), (0.16, 0.24), C_GREY, lw=2.0)
+    ax.text(0.175, 0.36, "«не покупать»: $r = 0$", ha="left", va="center", fontsize=10.5, color=C_GREY, weight="bold")
+    _box(ax, (0.02, 0.06), 0.28, 0.14, "ушёл домой\n(эпизод окончен)", C_GREY, fontsize=11, radius=0.02)
+    ax.text(0.66, 0.16, "$Q^*(s, \\text{купить}) = -10 + \\gamma\\,[\\,p \\cdot \\max(Q^*(s, \\text{купить}),\\, 0) + (1-p)\\cdot 1000\\,]$",
+            ha="center", va="center", fontsize=10.5, color=C_ACCENT, weight="bold")
+    ax.text(0.66, 0.06, "($Q^*(s, \\text{не покупать}) = 0$; при $\\gamma = 1$ и $p = 0.99$ решение $Q^*(s, \\text{купить}) = 0$)",
+            ha="center", va="center", fontsize=9.5, color=C_GREY)
+    fig.tight_layout()
+    fig.savefig(OUT / "lottery_mdp.png", dpi=DPI)
     plt.close(fig)
 
 
@@ -668,14 +690,14 @@ def bellman_family():
     """Одно уравнение — весь курс: какие методы что подставляют в уравнение Беллмана."""
     fig, ax = plt.subplots(figsize=(13, 6.2))
     ax.set_xlim(0, 1); ax.set_ylim(0, 1); ax.axis("off")
-    _box(ax, (0.30, 0.42), 0.40, 0.18, "Уравнение Беллмана\n$V(s) = \\mathbb{E}\\,[\\,r + \\gamma V(s')\\,]$", C_TEXT, fontsize=13)
+    _box(ax, (0.30, 0.42), 0.40, 0.18, "Уравнение Беллмана\n$Q(s,a) = \\mathbb{E}\\,[\\,r + \\gamma\\, Q(s', a')\\,]$", C_TEXT, fontsize=13)
     items = [
-        ((0.02, 0.76), "Динамическое\nпрограммирование (нед. 3)", C_ENV, "знаем $P$ и $R$: решаем\nуравнение итерациями"),
+        ((0.02, 0.76), "Динамическое\nпрограммирование (нед. 3)", C_ENV, "знаем $p(s'|s,a)$ и $r$: решаем\nуравнение простой итерацией"),
         ((0.36, 0.76), "Monte-Carlo (нед. 3)", C_AGENT, "вместо $\\mathbb{E}$ — среднее\nпо целым эпизодам"),
-        ((0.70, 0.76), "TD, SARSA, Q-learning\n(нед. 3)", C_AGENT, "вместо $\\mathbb{E}$ — один переход:\n$r + \\gamma V(s')$ по выборке"),
+        ((0.70, 0.76), "Q-learning, SARSA, TD\n(сегодня и нед. 3)", C_AGENT, "вместо $\\mathbb{E}$ — один переход $(s, a, r, s')$:\nсдвигаемся к таргету $r + \\gamma Q(s', a')$"),
         ((0.02, 0.06), "DQN (нед. 6)", C_PURPLE, "вместо таблицы $Q$ — нейросеть,\nневязка уравнения — функция потерь"),
-        ((0.36, 0.06), "Actor-Critic, PPO\n(нед. 8–9)", C_PURPLE, "критик учит $V$ по Беллману,\nактор улучшает политику"),
-        ((0.70, 0.06), "Model-based (нед. 11–12)", C_REWARD, "учим $P$ и $R$ по данным,\nдальше как в DP"),
+        ((0.36, 0.06), "Actor-Critic, PPO\n(нед. 8–9)", C_PURPLE, "критик учит $Q$ или $V$ по Беллману,\nактор улучшает стратегию"),
+        ((0.70, 0.06), "Model-based (нед. 11–12)", C_REWARD, "учим $p(s'|s,a)$ и $r$ по данным,\nдальше как в DP"),
     ]
     for (x, y), name, color, desc in items:
         _box(ax, (x, y), 0.28, 0.12, name, color, fontsize=11, radius=0.02)
@@ -691,6 +713,6 @@ def bellman_family():
 if __name__ == "__main__":
     for fn in (agent_env_loop, ml_paradigms, rl_timeline, rl_origins, rl_taxonomy, mdp_gridworld, course_map, markov_chain, cem_loop,
                env_anatomy, wrapper_onion, reward_types, observation_vs_state, action_spaces, policy_types,
-               return_recursion, bellman_backup, bellman_family):
+               return_recursion, q_choice, lottery_mdp, bellman_family):
         fn()
         print("saved", fn.__name__)
