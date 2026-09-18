@@ -858,6 +858,28 @@ def vi_update():
     plt.close(fig)
 
 
+def policy_iteration_loop():
+    """Зачем оценивать стратегию: цикл «оценил — улучшил» (policy iteration, неделя 3)."""
+    fig, ax = plt.subplots(figsize=(12.5, 3.9))
+    ax.set_xlim(0, 12.5); ax.set_ylim(0.7, 4.6); ax.axis("off")
+    ax.text(4.6, 4.3, "Зачем считать ценность стратегии", ha="center", fontsize=14, weight="bold", color=C_TEXT)
+    _box(ax, (0.5, 2.4), 3.5, 1.1, "Оценить\n$V^\\pi$, $Q^\\pi$ для текущей $\\pi$", C_AGENT, fontsize=12.5, radius=0.02)
+    _box(ax, (5.2, 2.4), 3.5, 1.1, "Улучшить\n$\\pi \\leftarrow \\arg\\max_a Q^\\pi$", C_ENV, fontsize=12.5, radius=0.02)
+    _arrow(ax, (4.1, 2.95), (5.1, 2.95), C_GREY, lw=2.2)
+    ax.plot([6.95, 6.95, 2.25, 2.25], [2.35, 1.75, 1.75, 2.35], color=C_GREY, lw=1.8)
+    _arrow(ax, (2.25, 1.9), (2.25, 2.35), C_GREY, lw=1.8)
+    ax.text(4.6, 1.5, "повторяем, пока стратегия меняется — это policy iteration, неделя 3",
+            ha="center", fontsize=11.5, color=C_GREY)
+    ax.text(4.6, 0.95, "новая стратегия гарантированно не хуже старой", ha="center", fontsize=12,
+            color=C_TEXT, weight="bold")
+    _box(ax, (9.3, 2.05), 2.9, 1.8, "на нашем мире:\n\nслучайная  −0.67\n↓ один шаг\nжадная  +0.50",
+         C_ACCENT, fontsize=12, radius=0.02)
+    ax.text(10.75, 1.6, "(это уже оптимум)", ha="center", fontsize=10.5, color=C_GREY)
+    fig.tight_layout()
+    fig.savefig(OUT / "policy_iteration_loop.png", dpi=DPI)
+    plt.close(fig)
+
+
 def bellman_family():
     """Одно уравнение — весь курс: какие методы что подставляют в уравнение Беллмана."""
     fig, ax = plt.subplots(figsize=(13, 6.2))
@@ -866,7 +888,7 @@ def bellman_family():
     items = [
         ((0.02, 0.76), "Динамическое\nпрограммирование (нед. 3)", C_ENV, "знаем $p(s'|s,a)$ и $r$: решаем\nуравнение простой итерацией"),
         ((0.36, 0.76), "Monte-Carlo (нед. 3)", C_AGENT, "вместо $\\mathbb{E}$ — среднее\nпо целым эпизодам"),
-        ((0.70, 0.76), "Q-learning, SARSA, TD\n(сегодня и нед. 3)", C_AGENT, "вместо $\\mathbb{E}$ — один переход $(s, a, r, s')$:\nсдвигаемся к таргету $r + \\gamma Q(s', a')$"),
+        ((0.70, 0.76), "Q-learning, SARSA, TD\n(нед. 3)", C_AGENT, "вместо $\\mathbb{E}$ — один переход $(s, a, r, s')$:\nсдвигаемся к таргету $r + \\gamma Q(s', a')$"),
         ((0.02, 0.06), "DQN (нед. 6)", C_PURPLE, "вместо таблицы $Q$ — нейросеть,\nневязка уравнения — функция потерь"),
         ((0.36, 0.06), "Actor-Critic, PPO\n(нед. 8–9)", C_PURPLE, "критик учит $Q$ или $V$ по Беллману,\nактор улучшает стратегию"),
         ((0.70, 0.06), "Model-based (нед. 11–12)", C_REWARD, "учим $p(s'|s,a)$ и $r$ по данным,\nдальше как в DP"),
@@ -885,6 +907,6 @@ def bellman_family():
 if __name__ == "__main__":
     for fn in (agent_env_loop, ml_paradigms, rl_timeline, rl_origins, rl_taxonomy, mdp_gridworld, course_map, markov_chain, cem_loop,
                env_anatomy, wrapper_onion, reward_types, observation_vs_state, action_spaces, policy_types,
-               return_recursion, gridworld_rules, from_episodes_to_steps, q_choice, v_vs_q, two_equations, vi_update, lottery_mdp, bellman_family):
+               return_recursion, gridworld_rules, from_episodes_to_steps, q_choice, v_vs_q, two_equations, vi_update, policy_iteration_loop, lottery_mdp, bellman_family):
         fn()
         print("saved", fn.__name__)
