@@ -282,6 +282,89 @@ def v_vs_q():
     plt.close(fig)
 
 
+def v_q_link():
+    """Связь Q и V: ходы чередуются — в состоянии выбирает агент (максимум), после действия среда (среднее)."""
+    fig, ax = plt.subplots(figsize=(13, 7.2))
+    ax.set_xlim(0, 13); ax.set_ylim(0, 7.2); ax.axis("off")
+    ax.text(6.5, 6.95, "Одна игра, два взгляда: до выбора действия и после",
+            ha="center", va="center", fontsize=14.5, weight="bold", color=C_TEXT)
+
+    # пояснения слева: чей сейчас ход
+    _box(ax, (0.25, 5.0), 3.4, 1.0, "ход агента:\nдействие выбираем мы\n→ берём лучшее", C_AGENT, fontsize=11.5, radius=0.02)
+    _box(ax, (0.25, 3.0), 3.4, 1.0, "ход среды:\nисход выбирает ветер\n→ усредняем", C_ENV, fontsize=11.5, radius=0.02)
+
+    # состояние s
+    ax.scatter([8.0], [6.1], s=2000, color=C_AGENT, zorder=3)
+    ax.text(8.0, 6.1, "$s$", ha="center", va="center", fontsize=16, color="white", weight="bold", zorder=4)
+    ax.text(8.75, 6.1, "$V^*(s)$ — мы здесь, действие ещё не выбрано", ha="left", va="center",
+            fontsize=12, color=C_TEXT)
+
+    # три действия
+    acts = [(5.0, "$Q^*(s, a_1)$", C_GREY), (8.0, "$Q^*(s, a_2)$", C_ACCENT), (11.0, "$Q^*(s, a_3)$", C_GREY)]
+    for x, label, color in acts:
+        _arrow(ax, (8.0 + (x - 8.0) * 0.12, 5.85), (x, 5.45), color, lw=2.6 if color == C_ACCENT else 1.6)
+        _box(ax, (x - 0.95, 4.75), 1.9, 0.62, label, color, fontsize=12, radius=0.02)
+    ax.text(1.95, 4.5, "красное — лучшее из трёх:\nего ценность и есть $V^*(s)$", ha="center", va="center",
+            fontsize=11, color=C_ACCENT, weight="bold")
+
+    # исходы среды у лучшего действия
+    outs = [(5.6, "0.8", 0.0), (8.0, "0.1", 0.32), (10.4, "0.1", 0.0)]
+    for x, p_text, dx in outs:
+        _arrow(ax, (8.0 + (x - 8.0) * 0.12, 4.65), (x, 3.95), C_ENV, lw=2.0)
+        ax.text(8.0 + (x - 8.0) * 0.58 + dx, 4.36, p_text, ha="center", va="center", fontsize=11.5,
+                color=C_ENV, weight="bold")
+        ax.scatter([x], [3.5], s=1500, color=C_ENV, zorder=3)
+        ax.text(x, 3.5, "$s'$", ha="center", va="center", fontsize=14, color="white", weight="bold", zorder=4)
+        ax.text(x, 2.85, "$V^*(s')$", ha="center", va="center", fontsize=12, color=C_TEXT)
+    ax.text(12.1, 3.5, "по дороге получаем\nнаграду $r$", ha="center", va="center", fontsize=11, color=C_REWARD)
+
+    # две связи внизу
+    links = [(0.4, C_AGENT, "Связь 1: смотрим до выбора действия",
+              "$V^*(s) \\; = \\; \\max_a Q^*(s, a)$"),
+             (6.9, C_ENV, "Связь 2: смотрим после выбора действия",
+              "$Q^*(s, a) \\; = \\; \\sum_{s'} p(s' | s, a)\\,[\\, r + \\gamma V^*(s') \\,]$")]
+    for x, color, head, formula in links:
+        ax.text(x + 2.85, 1.85, head, ha="center", va="center", fontsize=12, color=color, weight="bold")
+        ax.add_patch(FancyBboxPatch((x, 0.5), 5.7, 1.05, boxstyle="round,pad=0.02,rounding_size=0.05",
+                                    facecolor=C_LIGHT, linewidth=0))
+        ax.text(x + 2.85, 1.02, formula, ha="center", va="center", fontsize=14.5, color=C_TEXT)
+    ax.text(6.5, 0.1, "Каждая выражает одну неизвестную функцию через другую", ha="center", va="center",
+            fontsize=12, color=C_GREY)
+    fig.savefig(OUT / "v_q_link.png", dpi=DPI, bbox_inches="tight", pad_inches=0.2)
+    plt.close(fig)
+
+
+def bellman_substitution():
+    """Уравнение Беллмана получается подстановкой одной связи в другую — отдельно для Q и отдельно для V."""
+    fig, ax = plt.subplots(figsize=(13.6, 5.4))
+    ax.set_xlim(0, 13.6); ax.set_ylim(0, 5.4); ax.axis("off")
+    ax.text(6.8, 5.15, "Подставим одну связь в другую — и каждая функция выразится через себя же",
+            ha="center", va="center", fontsize=14, weight="bold", color=C_TEXT)
+
+    rows = [(3.35, C_ENV, "$Q^*(s,a) = \\sum_{s'} p\\,[\\, r + \\gamma\\, V^*(s') \\,]$",
+             "$Q^*(s,a) = \\sum_{s'} p\\,[\\, r + \\gamma\\, \\max_{a'} Q^*(s',a') \\,]$",
+             "в связь 2 подставили связь 1: вместо $V^*(s')$ написали $\\max_{a'} Q^*(s',a')$"),
+            (1.35, C_AGENT, "$V^*(s) = \\max_a Q^*(s,a)$",
+             "$V^*(s) = \\max_a \\sum_{s'} p\\,[\\, r + \\gamma\\, V^*(s') \\,]$",
+             "в связь 1 подставили связь 2: вместо $Q^*(s,a)$ написали её правую часть")]
+    for y, color, left, right, caption in rows:
+        ax.add_patch(FancyBboxPatch((0.3, y), 4.9, 1.0, boxstyle="round,pad=0.02,rounding_size=0.05",
+                                    facecolor=C_LIGHT, linewidth=0))
+        ax.text(2.75, y + 0.5, left, ha="center", va="center", fontsize=13, color=C_TEXT)
+        _arrow(ax, (5.35, y + 0.5), (6.45, y + 0.5), color, lw=2.4)
+        ax.add_patch(FancyBboxPatch((6.6, y), 6.7, 1.0, boxstyle="round,pad=0.02,rounding_size=0.05",
+                                    facecolor="white", linewidth=2.2, edgecolor=color))
+        ax.text(9.95, y + 0.5, right, ha="center", va="center", fontsize=13.5, color=C_TEXT)
+        ax.text(6.8, y - 0.25, caption, ha="center", va="center", fontsize=11, color=C_GREY)
+
+    ax.text(6.8, 0.62, "Слева и справа — одна и та же неизвестная функция. Это и есть уравнение Беллмана.",
+            ha="center", va="center", fontsize=12.5, color=C_ACCENT, weight="bold")
+    ax.text(6.8, 0.18, "Уравнения равносильны: зная $Q^*$, берём максимум и получаем $V^*$; зная $V^*$ и модель среды, считаем $Q^*$.",
+            ha="center", va="center", fontsize=11, color=C_GREY)
+    fig.savefig(OUT / "bellman_substitution.png", dpi=DPI, bbox_inches="tight", pad_inches=0.2)
+    plt.close(fig)
+
+
 def course_map():
     blocks = [
         ("Основы", C_GREY, ["1. Знакомство с RL", "2. Ключевые понятия,\n    построение среды",
@@ -907,6 +990,6 @@ def bellman_family():
 if __name__ == "__main__":
     for fn in (agent_env_loop, ml_paradigms, rl_timeline, rl_origins, rl_taxonomy, mdp_gridworld, course_map, markov_chain, cem_loop,
                env_anatomy, wrapper_onion, reward_types, observation_vs_state, action_spaces, policy_types,
-               return_recursion, gridworld_rules, from_episodes_to_steps, q_choice, v_vs_q, two_equations, vi_update, policy_iteration_loop, lottery_mdp, bellman_family):
+               return_recursion, gridworld_rules, from_episodes_to_steps, q_choice, v_vs_q, v_q_link, bellman_substitution, two_equations, vi_update, policy_iteration_loop, lottery_mdp, bellman_family):
         fn()
         print("saved", fn.__name__)
