@@ -4,3 +4,8 @@ __pycache__/
 .ipynb_checkpoints/
 *.pyc
 .DS_Store
+
+# списки студентов и собранные работы — не в публичный репозиторий
+roster.csv
+collected/
+journal.csv

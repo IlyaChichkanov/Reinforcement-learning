@@ -1,0 +1,548 @@
+<title>Квизы курса RL</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,500;7..72,600&family=Golos+Text:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+  :root {
+    --paper: #eef2f6;
+    --surface: #ffffff;
+    --surface-sunk: #f4f7fa;
+    --ink: #10202d;
+    --ink-soft: #4d6273;
+    --line: #d3dee7;
+    --line-strong: #b6c7d4;
+    --ice: #22688f;
+    --ice-soft: #dbeaf4;
+    --amber: #9a6113;
+    --amber-soft: #f6ecda;
+    --good: #1f7a4d;
+    --good-soft: #dff0e6;
+    --bad: #a83c2a;
+    --bad-soft: #f7e3de;
+    --shadow: 0 1px 2px rgba(16, 32, 45, .06), 0 8px 24px -16px rgba(16, 32, 45, .35);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #0c151d;
+      --surface: #131f29;
+      --surface-sunk: #0f1922;
+      --ink: #e4edf4;
+      --ink-soft: #9db0c0;
+      --line: #24343f;
+      --line-strong: #354856;
+      --ice: #79b8dd;
+      --ice-soft: #17303f;
+      --amber: #dda65a;
+      --amber-soft: #2e2416;
+      --good: #6ecb98;
+      --good-soft: #14291f;
+      --bad: #e58a74;
+      --bad-soft: #2d1a16;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -16px rgba(0, 0, 0, .8);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #0c151d;
+    --surface: #131f29;
+    --surface-sunk: #0f1922;
+    --ink: #e4edf4;
+    --ink-soft: #9db0c0;
+    --line: #24343f;
+    --line-strong: #354856;
+    --ice: #79b8dd;
+    --ice-soft: #17303f;
+    --amber: #dda65a;
+    --amber-soft: #2e2416;
+    --good: #6ecb98;
+    --good-soft: #14291f;
+    --bad: #e58a74;
+    --bad-soft: #2d1a16;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -16px rgba(0, 0, 0, .8);
+    color-scheme: dark;
+  }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Golos Text", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+    font-size: 16px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 44rem; margin: 0 auto; padding-inline: 20px; padding-block: 0 72px; }
+  h1, h2, h3 { font-family: Literata, Georgia, "Times New Roman", serif; font-weight: 600; text-wrap: balance; margin: 0; }
+  p { margin: 0; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  a { color: var(--ice); }
+
+  /* ---------- шапка ---------- */
+  header {
+    position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20;
+    background: color-mix(in srgb, var(--paper) 88%, transparent);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--line);
+    margin-inline: -20px; padding: 14px 20px 0;
+  }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand h1 { font-size: 1.15rem; letter-spacing: -.01em; }
+  .brand .sub { color: var(--ink-soft); font-size: .8rem; line-height: 1.3; }
+  .lake { flex: none; width: 40px; height: 40px; }
+  .switches { display: flex; flex-wrap: wrap; gap: 8px 18px; padding: 12px 0 10px; }
+  .seg { display: flex; gap: 2px; background: var(--surface-sunk); border: 1px solid var(--line); border-radius: 9px; padding: 2px; }
+  .seg button {
+    border: 0; background: transparent; border-radius: 7px; padding: 5px 11px;
+    font-size: .85rem; font-weight: 500; color: var(--ink-soft);
+  }
+  .seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+  .seg button:hover:not([aria-pressed="true"]) { color: var(--ink); }
+
+  /* полоса прогресса: клетки, как в GridWorld */
+  .rail { display: flex; gap: 3px; padding-bottom: 12px; }
+  .rail i {
+    flex: 1 1 0; height: 5px; border-radius: 2px; background: var(--line);
+    transition: background .18s ease;
+  }
+  .rail i.seen { background: var(--line-strong); }
+  .rail i.ok { background: var(--good); }
+  .rail i.no { background: var(--bad); }
+
+  /* ---------- вступление и режимы ---------- */
+  .lede { padding: 22px 0 6px; display: grid; gap: 10px; }
+  .lede h2 { font-size: 1.5rem; letter-spacing: -.015em; }
+  .lede p { color: var(--ink-soft); max-width: 60ch; }
+  .note {
+    display: flex; gap: 10px; align-items: baseline;
+    border-left: 2px solid var(--ice); padding: 2px 0 2px 12px;
+    color: var(--ink-soft); font-size: .9rem;
+  }
+  .note.exam { border-color: var(--amber); }
+
+  /* ---------- вопросы ---------- */
+  .q { padding: 26px 0; border-top: 1px solid var(--line); display: grid; gap: 14px; }
+  .q:first-of-type { border-top: 0; }
+  .q-head { display: grid; gap: 6px; }
+  .q-meta { display: flex; align-items: center; gap: 8px; font-size: .74rem; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-soft); }
+  .q-meta b { color: var(--ice); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .q-text { font-size: 1.06rem; font-weight: 500; text-wrap: pretty; }
+  .opts { display: grid; gap: 8px; }
+  .opt {
+    display: grid; grid-template-columns: 1.6rem 1fr; gap: 10px; align-items: baseline;
+    text-align: left; background: var(--surface); border: 1px solid var(--line);
+    border-radius: 10px; padding: 11px 14px; transition: border-color .15s ease, background .15s ease;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--line-strong); }
+  .opt:disabled { cursor: default; }
+  .opt .key {
+    font-family: "JetBrains Mono", ui-monospace, monospace; font-size: .82rem; font-weight: 700;
+    color: var(--ink-soft);
+  }
+  .opt[aria-checked="true"] { border-color: var(--ice); background: var(--ice-soft); }
+  .opt[aria-checked="true"] .key { color: var(--ice); }
+  .opt.correct { border-color: var(--good); background: var(--good-soft); }
+  .opt.correct .key { color: var(--good); }
+  .opt.wrong { border-color: var(--bad); background: var(--bad-soft); }
+  .opt.wrong .key { color: var(--bad); }
+  .why {
+    display: grid; gap: 6px; background: var(--surface-sunk); border-radius: 10px;
+    padding: 12px 14px; font-size: .93rem;
+  }
+  .why .verdict { font-weight: 600; }
+  .why .verdict.ok { color: var(--good); }
+  .why .verdict.no { color: var(--bad); }
+  .why .ref { color: var(--ink-soft); font-size: .84rem; }
+
+  /* ---------- зачёт: вход и результат ---------- */
+  .gate { display: grid; gap: 14px; max-width: 30rem; padding: 26px 0 8px; }
+  label { display: grid; gap: 6px; font-size: .9rem; font-weight: 500; }
+  input[type="text"] {
+    font: 500 1rem/1.4 "JetBrains Mono", ui-monospace, monospace;
+    text-transform: uppercase; letter-spacing: .08em;
+    background: var(--surface); color: var(--ink);
+    border: 1px solid var(--line-strong); border-radius: 9px; padding: 10px 12px;
+  }
+  input[type="text"]:focus-visible { outline: 2px solid var(--ice); outline-offset: 1px; }
+  .btn {
+    border: 1px solid transparent; border-radius: 9px; padding: 10px 18px;
+    font-weight: 600; font-size: .94rem; background: var(--ice); color: #fff;
+  }
+  :root[data-theme="dark"] .btn, :root:not([data-theme="light"]) .btn { color: #07131c; }
+  @media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .btn { color: #fff; } }
+  .btn:hover { filter: brightness(1.07); }
+  .btn.ghost { background: transparent; color: var(--ink); border-color: var(--line-strong); }
+  .btn:disabled { opacity: .45; cursor: default; filter: none; }
+  .hint { color: var(--ink-soft); font-size: .86rem; }
+  .err { color: var(--bad); font-size: .86rem; min-height: 1.2em; }
+
+  .footbar {
+    position: sticky; bottom: 0; z-index: 15;
+    margin-inline: -20px; padding: 12px 20px calc(12px + env(safe-area-inset-bottom, 0px));
+    background: color-mix(in srgb, var(--paper) 92%, transparent);
+    backdrop-filter: blur(8px); border-top: 1px solid var(--line);
+    display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;
+  }
+  .footbar .count { font-size: .9rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+
+  .result { display: grid; gap: 16px; padding: 26px 0 8px; }
+  .code-panel {
+    background: var(--amber-soft); border: 1px solid color-mix(in srgb, var(--amber) 35%, transparent);
+    border-radius: 12px; padding: 16px; display: grid; gap: 12px;
+  }
+  .code-panel .label { font-size: .74rem; letter-spacing: .07em; text-transform: uppercase; color: var(--amber); font-weight: 600; }
+  .code {
+    font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 1.02rem; font-weight: 700;
+    letter-spacing: .04em; word-break: break-all; line-height: 1.45;
+  }
+  .code-panel .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .score { font-family: Literata, Georgia, serif; font-size: 1.35rem; font-weight: 600; }
+  .steps { display: grid; gap: 8px; font-size: .93rem; color: var(--ink-soft); padding-left: 1.1rem; margin: 0; }
+  .steps code { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: .86em; background: var(--surface-sunk); padding: 1px 5px; border-radius: 4px; }
+
+  footer { border-top: 1px solid var(--line); margin-top: 32px; padding-top: 16px; color: var(--ink-soft); font-size: .84rem; display: grid; gap: 6px; }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+  @media (max-width: 480px) {
+    .brand h1 { font-size: 1.05rem; }
+    .lede h2 { font-size: 1.3rem; }
+    .opt { grid-template-columns: 1.4rem 1fr; padding: 10px 12px; }
+  }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <svg class="lake" viewBox="0 0 4 4" aria-hidden="true"><rect x="0" y="0" width="1" height="1" fill="var(--line-strong)" stroke="var(--line)" stroke-width="0.06"/><rect x="1" y="0" width="1" height="1" fill="var(--surface)" stroke="var(--line)" stroke-width="0.06"/><rect x="2" y="0" width="1" height="1" fill="var(--surface)" stroke="var(--line)" stroke-width="0.06"/><rect x="3" y="0" width="1" height="1" fill="var(--surface)" stroke="var(--line)" stroke-width="0.06"/><rect x="0" y="1" width="1" height="1" fill="var(--surface)" stroke="var(--line)" stroke-width="0.06"/><rect x="1" y="1" width="1" height="1" fill="var(--ice)" stroke="var(--line)" stroke-width="0.06"/><rect x="2" y="1" width="1" height="1" fill="var(--surface)" stroke="var(--line)" stroke-width="0.06"/><rect x="3" y="1" width="1" height="1" fill="var(--ice)" stroke="var(--line)" stroke-width="0.06"/><rect x="0" y="2" width="1" height="1" fill="var(--surface)" stroke="var(--line)" stroke-width="0.06"/><rect x="1" y="2" width="1" height="1" fill="var(--surface)" stroke="var(--line)" stroke-width="0.06"/><rect x="2" y="2" width="1" height="1" fill="var(--surface)" stroke="var(--line)" stroke-width="0.06"/><rect x="3" y="2" width="1" height="1" fill="var(--ice)" stroke="var(--line)" stroke-width="0.06"/><rect x="0" y="3" width="1" height="1" fill="var(--ice)" stroke="var(--line)" stroke-width="0.06"/><rect x="1" y="3" width="1" height="1" fill="var(--surface)" stroke="var(--line)" stroke-width="0.06"/><rect x="2" y="3" width="1" height="1" fill="var(--surface)" stroke="var(--line)" stroke-width="0.06"/><rect x="3" y="3" width="1" height="1" fill="var(--good)" stroke="var(--line)" stroke-width="0.06"/></svg>
+      <div>
+        <h1>Квизы курса RL</h1>
+        <div class="sub">Проверка понимания лекций</div>
+      </div>
+    </div>
+    <div class="switches">
+      <div class="seg" id="weeks" role="group" aria-label="Неделя"></div>
+      <div class="seg" id="modes" role="group" aria-label="Режим">
+        <button type="button" id="mode-train" aria-pressed="true">Тренировка</button>
+        <button type="button" id="mode-exam" aria-pressed="false">Зачёт</button>
+      </div>
+    </div>
+    <div class="rail" id="rail" aria-hidden="true"></div>
+  </header>
+
+  <main id="main"></main>
+
+  <footer>
+    <div>Вопросы собраны из лекций курса. Нашли ошибку в формулировке — напишите в <a href="https://github.com/IlyaChichkanov/Reinforcement-learning/issues">issues репозитория</a>.</div>
+    <div>Тренировочный режим ничего не сохраняет и не отправляет. В зачётном режиме страница только собирает ваши ответы в код — проверяет их преподаватель.</div>
+  </footer>
+</div>
+
+<script>
+const QUIZZES = [{"week":1,"title":"Знакомство с обучением с подкреплением","lecture":"01-intro/lecture/lecture.ipynb","pass_score":8,"questions":[{"id":"w1q01","topic":"Три вида машинного обучения","text":"Какая из задач — задача обучения с подкреплением?","options":["По истории поездок предсказать время в пути до университета","Разбить 50 000 отзывов на тематические группы","Подобрать порядок новостей в ленте так, чтобы пользователь читал больше в течение месяца","По рентгеновскому снимку поставить диагноз, которому научили врачи"],"answer":2,"explain":"Правильного порядка новостей не существует, награда отложена на месяц, а сама лента определяет, какие данные мы увидим завтра. Остальные три задачи решаются по готовой разметке или без неё, но решения модели там не меняют будущие данные.","ref":"Три вида машинного обучения, разминка «какой это тип обучения?»"},{"id":"w1q02","topic":"Агент и среда","text":"Агент играет в шахматы против соперника. Чем для агента является соперник?","options":["Вторым агентом, которого мы обучаем вместе с первым","Частью политики: агент выбирает ход за обоих","Функцией награды: соперник сообщает, насколько ход хорош","Частью среды: его ходы — это случайность переходов"],"answer":3,"explain":"Агент — это ровно то, что мы обучаем, среда — всё остальное. Ходы соперника с точки зрения нашего агента неотличимы от случайных переходов среды.","ref":"Определите сами: шахматы против соперника"},{"id":"w1q03","topic":"Интерфейс Gymnasium","text":"Что возвращает env.step(action) в Gymnasium и в каком порядке?","options":["награду, новое состояние, флаг окончания","новое состояние, награду, terminated, truncated, info","новое состояние, награду, info","новое состояние, награду, done, info"],"answer":1,"explain":"Шаг возвращает пять значений: новое состояние, награду и два разных флага окончания эпизода плюс служебный словарь. Единого флага done в современном интерфейсе нет.","ref":"Ключевые понятия: действие, награда, переход"},{"id":"w1q04","topic":"Эпизод и терминальное состояние","text":"Чем truncated отличается от terminated?","options":["Это синонимы, оставленные для совместимости со старым интерфейсом","terminated — агент победил, truncated — проиграл","После terminated будущих наград нет, после truncated они есть, просто мы их не увидели","terminated ставит среда, truncated — агент, когда решает сдаться"],"answer":2,"explain":"terminated означает настоящее терминальное состояние: цель или прорубь, после которых продолжения нет. truncated — эпизод оборвали снаружи по лимиту шагов, хотя среда могла бы продолжаться.","ref":"Ключевые понятия: эпизод и терминальное состояние"},{"id":"w1q05","topic":"Награда","text":"В Frozen Lake агент шагнул в прорубь. Какую награду он получит?","options":["−1 за провал","−1 за провал и дополнительно −0.01 за шаг","Ничего: среда не вызывает награду в терминальном состоянии","0 — озеро не наказывает, оно просто не награждает"],"answer":3,"explain":"Награда здесь очень скупая: 0 на каждом шаге и 1 только за вход в цель. За прорубь платят тоже 0 — эпизод просто заканчивается без награды.","ref":"Ключевые понятия: действие, награда, переход"},{"id":"w1q06","topic":"Return и дисконтирование","text":"Агент дошёл до цели за 6 шагов: награда 1 приходит на последнем шаге, остальные шаги дают 0. Чему равен return эпизода при γ = 0.95?","options":["1.00","0.95","0.77","0.30"],"answer":2,"explain":"Награда приходит на шестом шаге, то есть в момент t = 5, и весит γ⁵ = 0.95⁵ ≈ 0.77. Для сравнения, путь в 20 шагов даёт 0.95¹⁹ ≈ 0.38.","ref":"Ключевые понятия: return, чем измерять эпизод"},{"id":"w1q07","topic":"Return и дисконтирование","text":"Награда в Frozen Lake одна и та же — 1 за вход в цель. Что при этом даёт выбор γ = 0.95 вместо γ = 1?","options":["Короткий маршрут получает больший return, хотя награда об этом молчит","Агент начинает получать награду за каждый шаг","Return перестаёт быть бесконечным — иначе сумма расходится","Растёт доля эпизодов, в которых агент доходит до цели"],"answer":0,"explain":"Дисконтирование делает раннюю награду ценнее поздней, поэтому из двух успешных эпизодов лучше короткий. В эпизодической задаче с конечным числом шагов сумма конечна и при γ = 1, так что дело не в сходимости.","ref":"Ключевые понятия: return, чем измерять эпизод"},{"id":"w1q08","topic":"Политика","text":"Какое утверждение о политике неверно?","options":["Политика — единственное, что мы обучаем","Табличная политика хранит в клетке [s, a] вероятность выбрать a в состоянии s, и строка суммируется в единицу","Во время обучения детерминированная политика предпочтительнее стохастической: она не тратит шаги впустую","В CartPole политику удобнее задавать правилом, а не таблицей"],"answer":2,"explain":"Всё наоборот: пока агент учится, он обязан пробовать разное. Детерминированная политика «всегда вправо» на озере даёт 0 % успехов и одинаковые эпизоды, из которых нечему учиться, а равномерная изредка доходит до цели — и именно эти эпизоды дают материал для обучения.","ref":"Ключевые понятия: политика; Исследование и использование"},{"id":"w1q09","topic":"Оценка политики","text":"Что нужно, чтобы оценить качество политики J(π) методом Монте-Карло?","options":["Таблица переходов P(s′ | s, a) и функция награды R(s, a)","Размеченный набор пар «состояние — правильное действие»","Уравнение Беллмана для ценности состояний","Возможность играть эпизоды этой политикой и усреднить их return"],"answer":3,"explain":"Метод Монте-Карло не требует модели среды: сыграй политикой много эпизодов и усредни return. Точность растёт как 1/√K, где K — число эпизодов.","ref":"Как измерить политику: оценка методом Монте-Карло"},{"id":"w1q10","topic":"Ценность состояния","text":"Почему на тепловой карте ценности у клетки-цели и у прорубей ценности нет?","options":["Это терминальные состояния: будущего у них нет, а награда за вход в цель учтена в ценности соседней клетки","Агент попадает туда слишком редко, и оценка получается слишком шумной","Их ценность бесконечна, поэтому её не рисуют","Ценность определена только для тех клеток, где политика уже выучена"],"answer":0,"explain":"Ценность состояния — это ожидаемая сумма будущих наград. Из терминального состояния взаимодействие не продолжается, поэтому будущих наград нет и ценность равна нулю по определению.","ref":"Как измерить политику: ценность состояния"},{"id":"w1q11","topic":"Cross-Entropy: отбор элиты","text":"На первой итерации Cross-Entropy квантиль уровня q = 0.7 от returns двухсот эпизодов оказался равен 0.0, и условие «не хуже порога» прошли все 200 эпизодов. Почему так вышло и что с этим делают?","options":["Ошибка в вычислении квантиля; нужно брать квантиль уровня 0.3","Около 97 % эпизодов заканчиваются нулём, поэтому квантиль тоже ноль; в элиту дополнительно требуют return строго больше самого плохого","Порог всегда нулевой на первой итерации; со второй итерации он растёт сам","Нужно заменить квантиль на фиксированный порог, подобранный вручную"],"answer":1,"explain":"Когда почти все точки лежат на нуле, любой квантиль ниже 0.97 тоже равен нулю, и «элитой» оказываются все эпизоды подряд — политика скопировала бы случайное блуждание. Настоящий фильтр — второе условие: строго лучше самого плохого. Если не отличился никто, элита пуста и политика честно остаётся прежней.","ref":"Первый алгоритм: шаг 2, отобрать элиту"},{"id":"w1q12","topic":"Cross-Entropy: обновление политики","text":"Чем опасна вероятность ровно ноль, появившаяся у действия после обновления политики по частотам?","options":["Ничем: если действие не попало в элиту, оно и правда плохое","Агент больше никогда его не выберет и не узнает, что из него вышло бы; лечится сглаживанием по Лапласу и смешиванием со старой политикой","Сумма вероятностей в строке перестаёт равняться единице","Алгоритм падает с делением на ноль при следующем сэмплировании действия"],"answer":1,"explain":"Нулевая вероятность закрывает агенту доступ к данным об этом действии навсегда — ровно та ловушка, о которой говорит раздел про исследование. Без сглаживания уже через три итерации треть всех вероятностей обнуляется; сглаживание по Лапласу и смешивание со старой политикой убирают нули полностью.","ref":"Первый алгоритм: шаг 3 и «что может пойти не так»"}]},{"week":2,"title":"Агент, среда, награда, политика. Строим свою среду","lecture":"02-environments/lecture/lecture.ipynb","pass_score":8,"questions":[{"id":"w2q01","topic":"Граница агент/среда","text":"Обучаем контроллер шагающего робота. Что из перечисленного относится к агенту, а не к среде?","options":["Суставы и моторы робота","Задержки датчиков","Заряд батареи","Правило, по которому вычисляются токи на моторы"],"answer":3,"explain":"Агент — ровно то, что мы обучаем, то есть контроллер, выдающий токи. Тело робота, его датчики и батарея — среда. Поэтому «тот же агент» на другом роботе — уже другая задача.","ref":"Агент и среда: где проходит граница"},{"id":"w2q02","topic":"Граница агент/среда","text":"Почему функция награды живёт в среде, а не внутри агента?","options":["Так проще писать код: иначе награду пришлось бы передавать в каждый вызов step","Иначе агент просто назначит себе бесконечную награду; задачу ставит тот, кто задаёт награду","Агент физически не может вычислить награду, у него нет доступа к состоянию","Это требование библиотеки Gymnasium, в других библиотеках награду задаёт агент"],"answer":1,"explain":"Награда — это формулировка задачи, и она приходит извне. Агент, которому разрешили менять свою награду, оптимизировал бы её напрямую, ничего не делая в среде.","ref":"Агент и среда: где проходит граница"},{"id":"w2q03","topic":"Наблюдение и состояние","text":"На CartPole сравнили три эвристики: по полному наблюдению — 193 шага, только по углу шеста — 39, по углу из двух последних кадров — 173. Что показывает этот эксперимент?","options":["Марковское свойство нарушила не среда, а наш выбор наблюдения, и история в наблюдении его восстанавливает","CartPole — частично наблюдаемая среда, и исправить это нельзя","Угол шеста — бесполезный признак, решает только скорость","Эвристика по двум кадрам работает хуже полного наблюдения, потому что копит ошибку округления"],"answer":0,"explain":"Отняв у эвристики угловую скорость, мы сами сделали наблюдение неполным, и результат упал впятеро. Два кадра подряд позволяют восстановить скорость из разности — и результат почти вернулся к исходному.","ref":"Наблюдение и состояние: когда агент видит не всё"},{"id":"w2q04","topic":"POMDP","text":"Задача частично наблюдаема: наблюдение беднее состояния. Какие два приёма предлагает лекция?","options":["Увеличить число эпизодов и уменьшить learning rate","Добавить историю в наблюдение (например, стек последних кадров) или дать агенту память в виде рекуррентной сети","Перейти от стохастической политики к детерминированной","Добавить в награду штраф за неопределённость"],"answer":1,"explain":"Оба приёма возвращают в наблюдение то, чего в нём не хватало: стек последних k кадров, разность наблюдений или последние действия — либо память внутри самой политики.","ref":"Наблюдение и состояние: когда агент видит не всё"},{"id":"w2q05","topic":"Пространства Gymnasium","text":"Агент управляет рукой робота: на каждом шаге задаёт два вещественных момента из отрезка [−1, 1]. Какое пространство действий это описывает?","options":["Discrete(2)","MultiDiscrete([2, 2])","Box(-1.0, 1.0, shape=(2,))","Dict({'left': Discrete(2), 'right': Discrete(2)})"],"answer":2,"explain":"Непрерывные действия описываются Box с границами и формой. Discrete задаёт конечный набор вариантов, MultiDiscrete — несколько дискретных компонент, Dict — составное действие из разнородных частей.","ref":"Действия: дискретные, непрерывные, составные"},{"id":"w2q06","topic":"Разреженная и плотная награда","text":"Какое утверждение о разреженной и плотной награде верно?","options":["Разреженная награда честно описывает цель, но пока агент ни разу не дошёл, все эпизоды одинаковы и учиться не на чем","Плотная награда всегда обучает быстрее и никогда не меняет оптимальную политику","Разреженная награда — это когда награда приходит на каждом шаге, но маленькая","С плотной наградой оценивать качество политики удобнее, чем с настоящей"],"answer":0,"explain":"Это ровно то, что мы видели на Mountain Car: пока ни один эпизод не дошёл до флажка, все returns равны, элита пуста и алгоритм не двигается. Плотная награда лечит это, но агент начинает оптимизировать подсказку, поэтому оценивать политику нужно только по настоящей награде.","ref":"Награда: разреженная, плотная, shaping"},{"id":"w2q07","topic":"Reward shaping","text":"Потенциальный shaping добавляет к награде слагаемое F = γ·Φ(s′) − Φ(s). Почему такая добавка не меняет оптимальную политику?","options":["Потому что Φ выбирают маленькой по сравнению с настоящей наградой","Потому что F всегда положительно и лишь ускоряет обучение","Потому что вдоль любой траектории эти слагаемые складываются телескопически и меняют return на одну и ту же константу −Φ(s₀)","Потому что F обнуляется в терминальном состоянии"],"answer":2,"explain":"Сумма добавок вдоль траектории схлопывается и зависит только от стартового состояния, одинаково для всех траекторий из одного старта. Отсюда и практическое следствие: ходить кругами бесполезно — вернулся в ту же клетку, и сумма подсказок обнулилась.","ref":"Награда: reward shaping, потенциальные функции"},{"id":"w2q08","topic":"Типичные ошибки награды","text":"Награда «+1 за каждый шаг, пока эпизод продолжается». Где это ошибка?","options":["В любой задаче: положительная награда за шаг всегда ломает обучение","В лабиринте, который нужно пройти: агент научится не заканчивать эпизод. Для CartPole такая награда как раз правильная","Только если награда за цель меньше 1","Только в непрерывных задачах, где эпизод не заканчивается никогда"],"answer":1,"explain":"Эта награда поощряет тянуть время. В CartPole цель и есть «продержаться дольше», поэтому она правильная, а в лабиринте агент будет кружить и не доходить до выхода.","ref":"Награда: типичные ошибки"},{"id":"w2q09","topic":"Устройство среды в Gymnasium","text":"Что на самом деле возвращает gym.make(\"CartPole-v1\")?","options":["Экземпляр CartPoleEnv","Луковицу из обёрток вокруг среды: TimeLimit → OrderEnforcing → PassiveEnvChecker → CartPoleEnv","Функцию-фабрику, создающую среду при первом reset","Копию среды, зарегистрированной в реестре, без каких-либо обёрток"],"answer":1,"explain":"gym.make оборачивает среду несколькими слоями: PassiveEnvChecker проверяет типы, OrderEnforcing не даёт вызвать step до reset, TimeLimit обрывает эпизод на 500-м шаге флагом truncated. Сама физика доступна как env.unwrapped.","ref":"Устройство среды в Gymnasium; обёртки"},{"id":"w2q10","topic":"Своя среда","text":"Вы написали свой класс, унаследованный от gym.Env. Какое утверждение неверно?","options":["reset(seed=...) должен вызвать super().reset(seed=seed), чтобы инициализировать self.np_random","step возвращает пять значений, и truncated своя среда обычно оставляет на откуп обёртке TimeLimit","check_env из gymnasium.utils — дешёвая страховка от обидных багов вроде numpy.int64 там, где обещан int","Чтобы алгоритм из прошлой недели заработал, в него нужно добавить поддержку новой среды"],"answer":3,"explain":"Алгоритму не важно, чья это среда: ему нужны только reset, step и размеры пространств. Cross-Entropy из недели 1 переносится на GridWorld без единого изменения.","ref":"Строим свою среду: GridWorld с препятствиями"},{"id":"w2q11","topic":"Воспроизводимость","text":"Сколько независимых источников случайности нужно зафиксировать, чтобы эксперимент воспроизводился, и какие?","options":["Один: достаточно env.reset(seed=...)","Два: среда и агент","Три: среда (env.reset(seed=...)), агент (свой генератор для выбора действий) и пространства (action_space.seed(...))","Ни одного: Gymnasium фиксирует сиды сам при создании среды"],"answer":2,"explain":"У каждого источника свой генератор, и забытый третий тихо ломает воспроизводимость. При этом даже все три сида не спасают при смене версий библиотек или железа, если в деле нейросети на GPU — поэтому любой график в отчёте должен быть средним по нескольким сидам.","ref":"Воспроизводимость, векторные среды, регистрация"},{"id":"w2q12","topic":"Эксперимент: разреженная против плотной","text":"На поле 8×8 с лимитом в 30 шагов Cross-Entropy обучали дважды: на разреженной награде и на плотной с потенциальным shaping. Оценивали обе политики долей эпизодов, где агент дошёл до цели. Что получилось?","options":["Разреженная так и осталась на нуле все 25 итераций, плотная вышла примерно на три четверти успешных эпизодов","Обе вышли на один и тот же уровень, плотная просто быстрее","Плотная показала высокий shaped-return, но по настоящей награде осталась на нуле","Разреженная оказалась лучше: shaping увёл агента в сторону от цели"],"answer":0,"explain":"За 30 шагов случайный агент до цели не доходит ни разу, поэтому элита пуста и обучение на разреженной награде не начинается вовсе. Важно, что успех плотной измерен по настоящей цели, а не по подсказкам. При лимите в 50 шагов картина меняется: разреженная начинает работать и выходит выше плотной.","ref":"Обёртки: эксперимент «разреженная против плотной»"}]}];
+const LETTERS = "ABCDEFGHIJ";
+const SALT = "rl-course-2026";
+
+/* ---------- код результата: crc32 как в zlib ---------- */
+const CRC_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+
+function crc32(str) {
+  const bytes = new TextEncoder().encode(str);
+  let c = 0xFFFFFFFF;
+  for (const b of bytes) c = CRC_TABLE[(c ^ b) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+
+function resultCode(week, student, answers) {
+  const letters = answers.map(a => (a === null || a === undefined) ? "X" : LETTERS[a]).join("");
+  const payload = "W" + week + ":" + student + ":" + letters;
+  const crc = (crc32(payload + SALT) & 0xFFFF).toString(16).toUpperCase().padStart(4, "0");
+  return payload + ":" + crc;
+}
+
+/* ---------- состояние ---------- */
+const store = {
+  get(key, fallback) { try { const v = localStorage.getItem(key); return v === null ? fallback : v; } catch (e) { return fallback; } },
+  set(key, value) { try { localStorage.setItem(key, value); } catch (e) { /* приватное окно */ } },
+};
+
+let state = {
+  week: Number(store.get("rlquiz.week", String(QUIZZES[0].week))),
+  mode: store.get("rlquiz.mode", "train") === "exam" ? "exam" : "train",
+  student: store.get("rlquiz.student", ""),
+  started: false,
+  answers: {},
+  finished: false,
+};
+
+const quiz = () => QUIZZES.find(q => q.week === state.week) || QUIZZES[0];
+const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text !== undefined) n.textContent = text; return n; };
+
+function reset(keepMode) {
+  state.answers = {};
+  state.finished = false;
+  state.started = keepMode ? state.started : false;
+}
+
+/* ---------- отрисовка ---------- */
+function render() {
+  renderSwitches();
+  renderRail();
+  const main = document.getElementById("main");
+  main.replaceChildren();
+  if (state.mode === "exam" && !state.started) { main.append(gateView()); return; }
+  if (state.mode === "exam" && state.finished) { main.append(resultView()); return; }
+  main.append(ledeView());
+  const q = quiz();
+  q.questions.forEach((item, i) => main.append(questionView(item, i)));
+  if (state.mode === "exam") main.append(footbarView());
+  else main.append(trainFootView());
+}
+
+function renderSwitches() {
+  const weeks = document.getElementById("weeks");
+  weeks.replaceChildren();
+  QUIZZES.forEach(q => {
+    const b = el("button", null, "Лекция " + q.week);
+    b.type = "button";
+    b.setAttribute("aria-pressed", String(q.week === state.week));
+    b.onclick = () => { if (q.week === state.week) return; if (!confirmLeave()) return; state.week = q.week; store.set("rlquiz.week", String(q.week)); reset(); render(); };
+    weeks.append(b);
+  });
+  for (const [id, mode] of [["mode-train", "train"], ["mode-exam", "exam"]]) {
+    const b = document.getElementById(id);
+    b.setAttribute("aria-pressed", String(state.mode === mode));
+    b.onclick = () => { if (state.mode === mode) return; if (!confirmLeave()) return; state.mode = mode; store.set("rlquiz.mode", mode); reset(); render(); };
+  }
+}
+
+function confirmLeave() {
+  const answered = Object.keys(state.answers).length;
+  if (state.mode !== "exam" || state.finished || answered === 0) return true;
+  return confirm("Ответы на этот квиз сбросятся. Продолжить?");
+}
+
+function renderRail() {
+  const rail = document.getElementById("rail");
+  rail.replaceChildren();
+  const q = quiz();
+  q.questions.forEach((item, i) => {
+    const cell = el("i");
+    const given = state.answers[i];
+    if (given !== undefined) {
+      if (state.mode === "train") cell.classList.add(given === item.answer ? "ok" : "no");
+      else cell.classList.add("seen");
+    }
+    rail.append(cell);
+  });
+}
+
+function ledeView() {
+  const q = quiz();
+  const box = el("div", "lede");
+  box.append(el("h2", null, "Лекция " + q.week + ". " + q.title));
+  if (state.mode === "train") {
+    box.append(el("p", null, "Двенадцать вопросов по материалу лекции. Выбирайте ответ — разбор появится сразу, попытки не ограничены."));
+    const note = el("div", "note");
+    note.append(el("span", null, "Ничего не сохраняется и никуда не отправляется: это только для себя."));
+    box.append(note);
+  } else {
+    box.append(el("p", null, "Зачётный режим: правильность ответов не показывается. Отметьте все ответы и нажмите «Завершить» — страница соберёт код результата."));
+    const note = el("div", "note exam");
+    note.append(el("span", null, "Отвечает " + state.student + ". Ответы можно менять до нажатия «Завершить»."));
+    box.append(note);
+  }
+  return box;
+}
+
+function questionView(item, i) {
+  const q = quiz();
+  const wrap = el("section", "q");
+  const head = el("div", "q-head");
+  const meta = el("div", "q-meta");
+  const num = el("b", null, String(i + 1).padStart(2, "0") + " / " + String(q.questions.length).padStart(2, "0"));
+  meta.append(num, el("span", null, item.topic));
+  head.append(meta, el("div", "q-text", item.text));
+  wrap.append(head);
+
+  const given = state.answers[i];
+  const answered = given !== undefined;
+  const reveal = state.mode === "train" && answered;
+
+  const opts = el("div", "opts");
+  opts.setAttribute("role", "radiogroup");
+  opts.setAttribute("aria-label", "Варианты ответа");
+  item.options.forEach((text, k) => {
+    const b = el("button", "opt");
+    b.type = "button";
+    b.setAttribute("role", "radio");
+    b.setAttribute("aria-checked", String(given === k));
+    b.append(el("span", "key", LETTERS[k]), el("span", null, text));
+    if (reveal) {
+      b.disabled = true;
+      if (k === item.answer) b.classList.add("correct");
+      else if (k === given) b.classList.add("wrong");
+    }
+    b.onclick = () => {
+      if (state.mode === "train" && state.answers[i] !== undefined) return;
+      state.answers[i] = k;
+      render();
+      if (state.mode === "train") wrap.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    };
+    opts.append(b);
+  });
+  wrap.append(opts);
+
+  if (reveal) {
+    const why = el("div", "why");
+    const ok = given === item.answer;
+    const verdict = el("div", "verdict " + (ok ? "ok" : "no"), ok ? "Верно" : "Неверно, правильный ответ " + LETTERS[item.answer]);
+    why.append(verdict, el("div", null, item.explain), el("div", "ref", "Лекция " + q.week + ": " + item.ref));
+    wrap.append(why);
+  }
+  return wrap;
+}
+
+function trainFootView() {
+  const q = quiz();
+  const box = el("div", "result");
+  const answered = Object.keys(state.answers).length;
+  const right = Object.entries(state.answers).filter(([i, a]) => q.questions[i].answer === a).length;
+  if (answered === q.questions.length) {
+    box.append(el("div", "score", "Верно " + right + " из " + q.questions.length + (right >= q.pass_score ? " — уверенно" : " — стоит перечитать лекцию")));
+  } else if (answered > 0) {
+    box.append(el("div", "hint", "Отвечено " + answered + " из " + q.questions.length + ", верно " + right + "."));
+  }
+  const row = el("div", "code-panel");
+  row.style.background = "transparent";
+  row.style.border = "0";
+  row.style.padding = "0";
+  const again = el("button", "btn ghost", "Пройти заново");
+  again.type = "button";
+  again.onclick = () => { reset(); render(); window.scrollTo({ top: 0, behavior: "smooth" }); };
+  const toExam = el("button", "btn", "Перейти к зачёту");
+  toExam.type = "button";
+  toExam.onclick = () => { state.mode = "exam"; store.set("rlquiz.mode", "exam"); reset(); render(); window.scrollTo({ top: 0 }); };
+  const rowBox = el("div", "row");
+  rowBox.style.display = "flex";
+  rowBox.style.gap = "10px";
+  rowBox.style.flexWrap = "wrap";
+  rowBox.append(again, toExam);
+  box.append(rowBox);
+  return box;
+}
+
+function gateView() {
+  const q = quiz();
+  const box = el("form", "gate");
+  box.append(el("h2", null, "Зачёт по лекции " + q.week));
+  box.append(el("p", "hint", "Введите личный код, который выдал преподаватель, — он войдёт в код результата. Затем ответьте на все двенадцать вопросов: правильность в этом режиме не показывается."));
+  const label = el("label", null, "Личный код студента");
+  const input = el("input");
+  input.type = "text";
+  input.id = "student-code";
+  input.placeholder = "например IVAN23";
+  input.value = state.student;
+  input.autocomplete = "off";
+  input.spellcheck = false;
+  label.append(input);
+  const err = el("div", "err");
+  err.id = "gate-err";
+  const start = el("button", "btn", "Начать");
+  start.type = "submit";
+  box.append(label, err, start);
+  box.onsubmit = (e) => {
+    e.preventDefault();
+    const code = input.value.trim().toUpperCase();
+    if (!/^[A-Z0-9]{3,12}$/.test(code)) {
+      err.textContent = "Код состоит из 3–12 латинских букв и цифр — проверьте раскладку.";
+      return;
+    }
+    state.student = code;
+    store.set("rlquiz.student", code);
+    state.started = true;
+    render();
+  };
+  return box;
+}
+
+function footbarView() {
+  const q = quiz();
+  const bar = el("div", "footbar");
+  const answered = Object.keys(state.answers).length;
+  bar.append(el("div", "count", "Отвечено " + answered + " из " + q.questions.length));
+  const done = el("button", "btn", "Завершить");
+  done.type = "button";
+  done.disabled = answered === 0;
+  done.onclick = () => {
+    if (answered < q.questions.length && !confirm("Без ответа осталось " + (q.questions.length - answered) + " вопросов, они пойдут в ноль. Завершить?")) return;
+    state.finished = true;
+    render();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+  bar.append(done);
+  return bar;
+}
+
+function resultView() {
+  const q = quiz();
+  const answers = q.questions.map((_, i) => state.answers[i] === undefined ? null : state.answers[i]);
+  const code = resultCode(q.week, state.student, answers);
+  const box = el("div", "result");
+  box.append(el("h2", null, "Ответы записаны"));
+  box.append(el("p", "hint", "Баллы считает преподаватель: страница не знает, какие ответы верные, и никуда их не отправляет. Скопируйте код и сдайте его вместе с домашним заданием."));
+
+  const panel = el("div", "code-panel");
+  panel.append(el("div", "label", "Код результата"));
+  const codeEl = el("div", "code", code);
+  codeEl.id = "result-code";
+  panel.append(codeEl);
+  const row = el("div", "row");
+  const copy = el("button", "btn", "Скопировать");
+  copy.type = "button";
+  copy.onclick = async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      copy.textContent = "Скопировано";
+      setTimeout(() => { copy.textContent = "Скопировать"; }, 1600);
+    } catch (e) {
+      const sel = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(codeEl);
+      sel.removeAllRanges();
+      sel.addRange(range);
+      copy.textContent = "Выделено — нажмите Ctrl+C";
+    }
+  };
+  row.append(copy, el("span", "hint", "Код действует только для вашего личного кода " + state.student + "."));
+  panel.append(row);
+  box.append(panel);
+
+  const steps = el("ol", "steps");
+  const li1 = el("li");
+  li1.append(document.createTextNode("Откройте свой репозиторий с домашним заданием и файл "));
+  li1.append(el("code", null, "quiz/week" + String(q.week).padStart(2, "0") + ".txt"));
+  li1.append(document.createTextNode("."));
+  const li2 = el("li", null, "Вставьте код одной строкой вместо подсказки и сохраните.");
+  const li3 = el("li", null, "Отправьте изменения — проверка в pull request скажет, что код разобрался.");
+  steps.append(li1, li2, li3);
+  box.append(steps);
+
+  const row2 = el("div", "row");
+  row2.style.display = "flex";
+  row2.style.gap = "10px";
+  row2.style.flexWrap = "wrap";
+  const again = el("button", "btn ghost", "Вернуться к тренировке");
+  again.type = "button";
+  again.onclick = () => { state.mode = "train"; store.set("rlquiz.mode", "train"); reset(); render(); window.scrollTo({ top: 0 }); };
+  row2.append(again);
+  box.append(row2);
+  return box;
+}
+
+render();
+</script>

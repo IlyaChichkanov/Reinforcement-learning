@@ -18,13 +18,13 @@
 <td>1</td>
 <td>01.09</td>
 <td>Знакомство с Reinforcement Learning</td>
-<td><a href="01-intro/lecture/lecture.ipynb">лекция</a> · <a href="01-intro/seminar/seminar.ipynb">семинар</a> · <a href="01-intro/homework/homework.ipynb">дз</a> · <a href="01-intro/seminar/dl_basics.ipynb">dl-минимум</a> · <a href="01-intro/seminar/pytorch_intro.ipynb">pytorch-разминка</a></td>
+<td><a href="01-intro/lecture/lecture.ipynb">лекция</a> · <a href="01-intro/seminar/seminar.ipynb">семинар</a> · <a href="01-intro/homework/homework.ipynb">дз</a> · <a href="01-intro/seminar/dl_basics.ipynb">dl-минимум</a> · <a href="01-intro/seminar/pytorch_intro.ipynb">pytorch-разминка</a> · <a href="https://ilyachichkanov.github.io/Reinforcement-learning/">квиз</a></td>
 </tr>
 <tr>
 <td>2</td>
 <td>08.09</td>
 <td>Ключевые понятия RL: агент, среда, награда, политика. Построение среды</td>
-<td><a href="02-environments/lecture/lecture.ipynb">лекция</a> · <a href="02-environments/seminar/seminar.ipynb">семинар</a> · <a href="02-environments/homework/homework.ipynb">дз</a></td>
+<td><a href="02-environments/lecture/lecture.ipynb">лекция</a> · <a href="02-environments/seminar/seminar.ipynb">семинар</a> · <a href="02-environments/homework/homework.ipynb">дз</a> · <a href="https://ilyachichkanov.github.io/Reinforcement-learning/">квиз</a></td>
 </tr>
 <tr>
 <td>3</td>
@@ -120,6 +120,10 @@
 * `lecture/` — конспект лекции в виде ноутбука (теория, вывод формул, иногда мини-демо)
 * `seminar/` — ноутбук для занятия: разбор кода и эксперименты вживую
 * `homework/` — ноутбук с заданием; часть проверок оформлена как `assert`, чтобы можно было проверить себя локально
+
+### Квизы
+
+После каждой лекции — квиз на двенадцать вопросов: [страница квизов](https://ilyachichkanov.github.io/Reinforcement-learning/) (адрес заработает, когда в настройках репозитория включены GitHub Pages из папки `/docs` — см. [`classroom/SETUP.md`](classroom/SETUP.md)). В тренировочном режиме разбор появляется сразу, в зачётном страница выдаёт код результата, который сдаётся вместе с домашним заданием. Вопросы лежат в [`quizzes/`](quizzes/), схема сдачи — в [`classroom/SETUP.md`](classroom/SETUP.md).
 
 ### Если вы не работали с нейросетями
 
