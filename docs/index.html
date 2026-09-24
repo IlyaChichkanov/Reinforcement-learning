@@ -1,0 +1,548 @@
+<title>Квизы курса RL</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,500;7..72,600&family=Golos+Text:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+  :root {
+    --paper: #eef2f6;
+    --surface: #ffffff;
+    --surface-sunk: #f4f7fa;
+    --ink: #10202d;
+    --ink-soft: #4d6273;
+    --line: #d3dee7;
+    --line-strong: #b6c7d4;
+    --ice: #22688f;
+    --ice-soft: #dbeaf4;
+    --amber: #9a6113;
+    --amber-soft: #f6ecda;
+    --good: #1f7a4d;
+    --good-soft: #dff0e6;
+    --bad: #a83c2a;
+    --bad-soft: #f7e3de;
+    --shadow: 0 1px 2px rgba(16, 32, 45, .06), 0 8px 24px -16px rgba(16, 32, 45, .35);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #0c151d;
+      --surface: #131f29;
+      --surface-sunk: #0f1922;
+      --ink: #e4edf4;
+      --ink-soft: #9db0c0;
+      --line: #24343f;
+      --line-strong: #354856;
+      --ice: #79b8dd;
+      --ice-soft: #17303f;
+      --amber: #dda65a;
+      --amber-soft: #2e2416;
+      --good: #6ecb98;
+      --good-soft: #14291f;
+      --bad: #e58a74;
+      --bad-soft: #2d1a16;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -16px rgba(0, 0, 0, .8);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #0c151d;
+    --surface: #131f29;
+    --surface-sunk: #0f1922;
+    --ink: #e4edf4;
+    --ink-soft: #9db0c0;
+    --line: #24343f;
+    --line-strong: #354856;
+    --ice: #79b8dd;
+    --ice-soft: #17303f;
+    --amber: #dda65a;
+    --amber-soft: #2e2416;
+    --good: #6ecb98;
+    --good-soft: #14291f;
+    --bad: #e58a74;
+    --bad-soft: #2d1a16;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -16px rgba(0, 0, 0, .8);
+    color-scheme: dark;
+  }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Golos Text", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+    font-size: 16px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 44rem; margin: 0 auto; padding-inline: 20px; padding-block: 0 72px; }
+  h1, h2, h3 { font-family: Literata, Georgia, "Times New Roman", serif; font-weight: 600; text-wrap: balance; margin: 0; }
+  p { margin: 0; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  a { color: var(--ice); }
+
+  /* ---------- шапка ---------- */
+  header {
+    position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20;
+    background: color-mix(in srgb, var(--paper) 88%, transparent);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--line);
+    margin-inline: -20px; padding: 14px 20px 0;
+  }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand h1 { font-size: 1.15rem; letter-spacing: -.01em; }
+  .brand .sub { color: var(--ink-soft); font-size: .8rem; line-height: 1.3; }
+  .lake { flex: none; width: 40px; height: 40px; }
+  .switches { display: flex; flex-wrap: wrap; gap: 8px 18px; padding: 12px 0 10px; }
+  .seg { display: flex; gap: 2px; background: var(--surface-sunk); border: 1px solid var(--line); border-radius: 9px; padding: 2px; }
+  .seg button {
+    border: 0; background: transparent; border-radius: 7px; padding: 5px 11px;
+    font-size: .85rem; font-weight: 500; color: var(--ink-soft);
+  }
+  .seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+  .seg button:hover:not([aria-pressed="true"]) { color: var(--ink); }
+
+  /* полоса прогресса: клетки, как в GridWorld */
+  .rail { display: flex; gap: 3px; padding-bottom: 12px; }
+  .rail i {
+    flex: 1 1 0; height: 5px; border-radius: 2px; background: var(--line);
+    transition: background .18s ease;
+  }
+  .rail i.seen { background: var(--line-strong); }
+  .rail i.ok { background: var(--good); }
+  .rail i.no { background: var(--bad); }
+
+  /* ---------- вступление и режимы ---------- */
+  .lede { padding: 22px 0 6px; display: grid; gap: 10px; }
+  .lede h2 { font-size: 1.5rem; letter-spacing: -.015em; }
+  .lede p { color: var(--ink-soft); max-width: 60ch; }
+  .note {
+    display: flex; gap: 10px; align-items: baseline;
+    border-left: 2px solid var(--ice); padding: 2px 0 2px 12px;
+    color: var(--ink-soft); font-size: .9rem;
+  }
+  .note.exam { border-color: var(--amber); }
+
+  /* ---------- вопросы ---------- */
+  .q { padding: 26px 0; border-top: 1px solid var(--line); display: grid; gap: 14px; }
+  .q:first-of-type { border-top: 0; }
+  .q-head { display: grid; gap: 6px; }
+  .q-meta { display: flex; align-items: center; gap: 8px; font-size: .74rem; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-soft); }
+  .q-meta b { color: var(--ice); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .q-text { font-size: 1.06rem; font-weight: 500; text-wrap: pretty; }
+  .opts { display: grid; gap: 8px; }
+  .opt {
+    display: grid; grid-template-columns: 1.6rem 1fr; gap: 10px; align-items: baseline;
+    text-align: left; background: var(--surface); border: 1px solid var(--line);
+    border-radius: 10px; padding: 11px 14px; transition: border-color .15s ease, background .15s ease;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--line-strong); }
+  .opt:disabled { cursor: default; }
+  .opt .key {
+    font-family: "JetBrains Mono", ui-monospace, monospace; font-size: .82rem; font-weight: 700;
+    color: var(--ink-soft);
+  }
+  .opt[aria-checked="true"] { border-color: var(--ice); background: var(--ice-soft); }
+  .opt[aria-checked="true"] .key { color: var(--ice); }
+  .opt.correct { border-color: var(--good); background: var(--good-soft); }
+  .opt.correct .key { color: var(--good); }
+  .opt.wrong { border-color: var(--bad); background: var(--bad-soft); }
+  .opt.wrong .key { color: var(--bad); }
+  .why {
+    display: grid; gap: 6px; background: var(--surface-sunk); border-radius: 10px;
+    padding: 12px 14px; font-size: .93rem;
+  }
+  .why .verdict { font-weight: 600; }
+  .why .verdict.ok { color: var(--good); }
+  .why .verdict.no { color: var(--bad); }
+  .why .ref { color: var(--ink-soft); font-size: .84rem; }
+
+  /* ---------- зачёт: вход и результат ---------- */
+  .gate { display: grid; gap: 14px; max-width: 30rem; padding: 26px 0 8px; }
+  label { display: grid; gap: 6px; font-size: .9rem; font-weight: 500; }
+  input[type="text"] {
+    font: 500 1rem/1.4 "JetBrains Mono", ui-monospace, monospace;
+    text-transform: uppercase; letter-spacing: .08em;
+    background: var(--surface); color: var(--ink);
+    border: 1px solid var(--line-strong); border-radius: 9px; padding: 10px 12px;
+  }
+  input[type="text"]:focus-visible { outline: 2px solid var(--ice); outline-offset: 1px; }
+  .btn {
+    border: 1px solid transparent; border-radius: 9px; padding: 10px 18px;
+    font-weight: 600; font-size: .94rem; background: var(--ice); color: #fff;
+  }
+  :root[data-theme="dark"] .btn, :root:not([data-theme="light"]) .btn { color: #07131c; }
+  @media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .btn { color: #fff; } }
+  .btn:hover { filter: brightness(1.07); }
+  .btn.ghost { background: transparent; color: var(--ink); border-color: var(--line-strong); }
+  .btn:disabled { opacity: .45; cursor: default; filter: none; }
+  .hint { color: var(--ink-soft); font-size: .86rem; }
+  .err { color: var(--bad); font-size: .86rem; min-height: 1.2em; }
+
+  .footbar {
+    position: sticky; bottom: 0; z-index: 15;
+    margin-inline: -20px; padding: 12px 20px calc(12px + env(safe-area-inset-bottom, 0px));
+    background: color-mix(in srgb, var(--paper) 92%, transparent);
+    backdrop-filter: blur(8px); border-top: 1px solid var(--line);
+    display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;
+  }
+  .footbar .count { font-size: .9rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+
+  .result { display: grid; gap: 16px; padding: 26px 0 8px; }
+  .code-panel {
+    background: var(--amber-soft); border: 1px solid color-mix(in srgb, var(--amber) 35%, transparent);
+    border-radius: 12px; padding: 16px; display: grid; gap: 12px;
+  }
+  .code-panel .label { font-size: .74rem; letter-spacing: .07em; text-transform: uppercase; color: var(--amber); font-weight: 600; }
+  .code {
+    font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 1.02rem; font-weight: 700;
+    letter-spacing: .04em; word-break: break-all; line-height: 1.45;
+  }
+  .code-panel .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .score { font-family: Literata, Georgia, serif; font-size: 1.35rem; font-weight: 600; }
+  .steps { display: grid; gap: 8px; font-size: .93rem; color: var(--ink-soft); padding-left: 1.1rem; margin: 0; }
+  .steps code { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: .86em; background: var(--surface-sunk); padding: 1px 5px; border-radius: 4px; }
+
+  footer { border-top: 1px solid var(--line); margin-top: 32px; padding-top: 16px; color: var(--ink-soft); font-size: .84rem; display: grid; gap: 6px; }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+  @media (max-width: 480px) {
+    .brand h1 { font-size: 1.05rem; }
+    .lede h2 { font-size: 1.3rem; }
+    .opt { grid-template-columns: 1.4rem 1fr; padding: 10px 12px; }
+  }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <svg class="lake" viewBox="0 0 4 4" aria-hidden="true"><rect x="0" y="0" width="1" height="1" fill="var(--line-strong)" stroke="var(--line)" stroke-width="0.06"/><rect x="1" y="0" width="1" height="1" fill="var(--surface)" stroke="var(--line)" stroke-width="0.06"/><rect x="2" y="0" width="1" height="1" fill="var(--surface)" stroke="var(--line)" stroke-width="0.06"/><rect x="3" y="0" width="1" height="1" fill="var(--surface)" stroke="var(--line)" stroke-width="0.06"/><rect x="0" y="1" width="1" height="1" fill="var(--surface)" stroke="var(--line)" stroke-width="0.06"/><rect x="1" y="1" width="1" height="1" fill="var(--ice)" stroke="var(--line)" stroke-width="0.06"/><rect x="2" y="1" width="1" height="1" fill="var(--surface)" stroke="var(--line)" stroke-width="0.06"/><rect x="3" y="1" width="1" height="1" fill="var(--ice)" stroke="var(--line)" stroke-width="0.06"/><rect x="0" y="2" width="1" height="1" fill="var(--surface)" stroke="var(--line)" stroke-width="0.06"/><rect x="1" y="2" width="1" height="1" fill="var(--surface)" stroke="var(--line)" stroke-width="0.06"/><rect x="2" y="2" width="1" height="1" fill="var(--surface)" stroke="var(--line)" stroke-width="0.06"/><rect x="3" y="2" width="1" height="1" fill="var(--ice)" stroke="var(--line)" stroke-width="0.06"/><rect x="0" y="3" width="1" height="1" fill="var(--ice)" stroke="var(--line)" stroke-width="0.06"/><rect x="1" y="3" width="1" height="1" fill="var(--surface)" stroke="var(--line)" stroke-width="0.06"/><rect x="2" y="3" width="1" height="1" fill="var(--surface)" stroke="var(--line)" stroke-width="0.06"/><rect x="3" y="3" width="1" height="1" fill="var(--good)" stroke="var(--line)" stroke-width="0.06"/></svg>
+      <div>
+        <h1>Квизы курса RL</h1>
+        <div class="sub">Проверка понимания лекций</div>
+      </div>
+    </div>
+    <div class="switches">
+      <div class="seg" id="weeks" role="group" aria-label="Неделя"></div>
+      <div class="seg" id="modes" role="group" aria-label="Режим">
+        <button type="button" id="mode-train" aria-pressed="true">Тренировка</button>
+        <button type="button" id="mode-exam" aria-pressed="false">Зачёт</button>
+      </div>
+    </div>
+    <div class="rail" id="rail" aria-hidden="true"></div>
+  </header>
+
+  <main id="main"></main>
+
+  <footer>
+    <div>Вопросы собраны из лекций курса. Нашли ошибку в формулировке — напишите в <a href="https://github.com/IlyaChichkanov/Reinforcement-learning/issues">issues репозитория</a>.</div>
+    <div>Тренировочный режим ничего не сохраняет и не отправляет. В зачётном режиме страница только собирает ваши ответы в код — проверяет их преподаватель.</div>
+  </footer>
+</div>
+
+<script>
+const QUIZZES = [{"week":1,"title":"Знакомство с обучением с подкреплением","lecture":"01-intro/lecture/lecture.ipynb","pass_score":8,"questions":[{"id":"w1q01","topic":"Три вида машинного обучения","text":"Какая из задач — задача обучения с подкреплением?","options":["По истории поездок предсказать время в пути до университета","Разбить 50 000 отзывов на тематические группы","Подобрать порядок новостей в ленте так, чтобы пользователь читал больше в течение месяца","По рентгеновскому снимку поставить диагноз, которому научили врачи"],"answer":2,"explain":"Правильного порядка новостей не существует, награда отложена на месяц, а сама лента определяет, какие данные мы увидим завтра. Остальные три задачи решаются по готовой разметке или без неё, но решения модели там не меняют будущие данные.","ref":"Три вида машинного обучения, разминка «какой это тип обучения?»"},{"id":"w1q02","topic":"Агент и среда","text":"Агент играет в шахматы против соперника. Чем для агента является соперник?","options":["Вторым агентом, которого мы обучаем вместе с первым","Частью политики: агент выбирает ход за обоих","Функцией награды: соперник сообщает, насколько ход хорош","Частью среды: его ходы — это случайность переходов"],"answer":3,"explain":"Агент — это ровно то, что мы обучаем, среда — всё остальное. Ходы соперника с точки зрения нашего агента неотличимы от случайных переходов среды.","ref":"Определите сами: шахматы против соперника"},{"id":"w1q03","topic":"Интерфейс Gymnasium","text":"Что возвращает env.step(action) в Gymnasium и в каком порядке?","options":["награду, новое состояние, флаг окончания","новое состояние, награду, terminated, truncated, info","новое состояние, награду, info","новое состояние, награду, done, info"],"answer":1,"explain":"Шаг возвращает пять значений: новое состояние, награду и два разных флага окончания эпизода плюс служебный словарь. Единого флага done в современном интерфейсе нет.","ref":"Ключевые понятия: действие, награда, переход"},{"id":"w1q04","topic":"Эпизод и терминальное состояние","text":"Чем truncated отличается от terminated?","options":["Это синонимы, оставленные для совместимости со старым интерфейсом","terminated — агент победил, truncated — проиграл","После terminated будущих наград нет, после truncated они есть, просто мы их не увидели","terminated ставит среда, truncated — агент, когда решает сдаться"],"answer":2,"explain":"terminated означает настоящее терминальное состояние: цель или прорубь, после которых продолжения нет. truncated — эпизод оборвали снаружи по лимиту шагов, хотя среда могла бы продолжаться.","ref":"Ключевые понятия: эпизод и терминальное состояние"},{"id":"w1q05","topic":"Награда","text":"В Frozen Lake агент шагнул в прорубь. Какую награду он получит?","options":["−1 за провал","−1 за провал и дополнительно −0.01 за шаг","Ничего: среда не вызывает награду в терминальном состоянии","0 — озеро не наказывает, оно просто не награждает"],"answer":3,"explain":"Награда здесь очень скупая: 0 на каждом шаге и 1 только за вход в цель. За прорубь платят тоже 0 — эпизод просто заканчивается без награды.","ref":"Ключевые понятия: действие, награда, переход"},{"id":"w1q06","topic":"Return и дисконтирование","text":"Агент дошёл до цели за 6 шагов: награда 1 приходит на последнем шаге, остальные шаги дают 0. Чему равен return эпизода при γ = 0.95?","options":["1.00","0.95","0.77","0.30"],"answer":2,"explain":"Награда приходит на шестом шаге, то есть в момент t = 5, и весит γ⁵ = 0.95⁵ ≈ 0.77. Для сравнения, путь в 20 шагов даёт 0.95¹⁹ ≈ 0.38.","ref":"Ключевые понятия: return, чем измерять эпизод"},{"id":"w1q07","topic":"Return и дисконтирование","text":"Награда в Frozen Lake одна и та же — 1 за вход в цель. Что при этом даёт выбор γ = 0.95 вместо γ = 1?","options":["Короткий маршрут получает больший return, хотя награда об этом молчит","Агент начинает получать награду за каждый шаг","Return перестаёт быть бесконечным — иначе сумма расходится","Растёт доля эпизодов, в которых агент доходит до цели"],"answer":0,"explain":"Дисконтирование делает раннюю награду ценнее поздней, поэтому из двух успешных эпизодов лучше короткий. В эпизодической задаче с конечным числом шагов сумма конечна и при γ = 1, так что дело не в сходимости.","ref":"Ключевые понятия: return, чем измерять эпизод"},{"id":"w1q08","topic":"Политика","text":"Какое утверждение о политике неверно?","options":["Политика — единственное, что мы обучаем","Табличная политика хранит в клетке [s, a] вероятность выбрать a в состоянии s, и строка суммируется в единицу","Во время обучения детерминированная политика предпочтительнее стохастической: она не тратит шаги впустую","В CartPole политику удобнее задавать правилом, а не таблицей"],"answer":2,"explain":"Всё наоборот: пока агент учится, он обязан пробовать разное. Детерминированная политика «всегда вправо» на озере даёт 0 % успехов и одинаковые эпизоды, из которых нечему учиться, а равномерная изредка доходит до цели — и именно эти эпизоды дают материал для обучения.","ref":"Ключевые понятия: политика; Исследование и использование"},{"id":"w1q09","topic":"Оценка политики","text":"Что нужно, чтобы оценить качество политики J(π) методом Монте-Карло?","options":["Таблица переходов P(s′ | s, a) и функция награды R(s, a)","Размеченный набор пар «состояние — правильное действие»","Уравнение Беллмана для ценности состояний","Возможность играть эпизоды этой политикой и усреднить их return"],"answer":3,"explain":"Метод Монте-Карло не требует модели среды: сыграй политикой много эпизодов и усредни return. Точность растёт как 1/√K, где K — число эпизодов.","ref":"Как измерить политику: оценка методом Монте-Карло"},{"id":"w1q10","topic":"Ценность состояния","text":"Почему на тепловой карте ценности у клетки-цели и у прорубей ценности нет?","options":["Это терминальные состояния: будущего у них нет, а награда за вход в цель учтена в ценности соседней клетки","Агент попадает туда слишком редко, и оценка получается слишком шумной","Их ценность бесконечна, поэтому её не рисуют","Ценность определена только для тех клеток, где политика уже выучена"],"answer":0,"explain":"Ценность состояния — это ожидаемая сумма будущих наград. Из терминального состояния взаимодействие не продолжается, поэтому будущих наград нет и ценность равна нулю по определению.","ref":"Как измерить политику: ценность состояния"},{"id":"w1q11","topic":"Cross-Entropy: отбор элиты","text":"На первой итерации Cross-Entropy квантиль уровня q = 0.7 от returns двухсот эпизодов оказался равен 0.0, и условие «не хуже порога» прошли все 200 эпизодов. Почему так вышло и что с этим делают?","options":["Ошибка в вычислении квантиля; нужно брать квантиль уровня 0.3","Около 97 % эпизодов заканчиваются нулём, поэтому квантиль тоже ноль; в элиту дополнительно требуют return строго больше самого плохого","Порог всегда нулевой на первой итерации; со второй итерации он растёт сам","Нужно заменить квантиль на фиксированный порог, подобранный вручную"],"answer":1,"explain":"Когда почти все точки лежат на нуле, любой квантиль ниже 0.97 тоже равен нулю, и «элитой» оказываются все эпизоды подряд — политика скопировала бы случайное блуждание. Настоящий фильтр — второе условие: строго лучше самого плохого. Если не отличился никто, элита пуста и политика честно остаётся прежней.","ref":"Первый алгоритм: шаг 2, отобрать элиту"},{"id":"w1q12","topic":"Cross-Entropy: обновление политики","text":"Чем опасна вероятность ровно ноль, появившаяся у действия после обновления политики по частотам?","options":["Ничем: если действие не попало в элиту, оно и правда плохое","Агент больше никогда его не выберет и не узнает, что из него вышло бы; лечится сглаживанием по Лапласу и смешиванием со старой политикой","Сумма вероятностей в строке перестаёт равняться единице","Алгоритм падает с делением на ноль при следующем сэмплировании действия"],"answer":1,"explain":"Нулевая вероятность закрывает агенту доступ к данным об этом действии навсегда — ровно та ловушка, о которой говорит раздел про исследование. Без сглаживания уже через три итерации треть всех вероятностей обнуляется; сглаживание по Лапласу и смешивание со старой политикой убирают нули полностью.","ref":"Первый алгоритм: шаг 3 и «что может пойти не так»"}]},{"week":2,"title":"Ценность действия и уравнение Беллмана","lecture":"02-environments/lecture/lecture.ipynb","pass_score":8,"questions":[{"id":"w2q01","topic":"Зачем оценивать каждый шаг","text":"Эпизод длится около ста шагов. Чем в такой задаче расточителен метод Cross-Entropy?","options":["Ему нужны таблицы переходов среды, которых обычно нет","Он видит одно число на весь эпизод: эпизод с 99 верными шагами и одной ошибкой выбрасывается целиком","Он обновляет политику после каждого шага, поэтому работает медленно","Он не умеет работать со стохастическими политиками"],"answer":1,"explain":"Cross-Entropy оценивает эпизод целиком и ничего не знает о вкладе отдельных шагов. Хорошие решения внутри неудачного эпизода пропадают вместе с ним, а в больших средах удачных эпизодов может не оказаться вовсе. Отсюда желание оценивать каждый шаг — ценностью действия.","ref":"Где мы остановились"},{"id":"w2q02","topic":"Модель среды","text":"В клетчатом мире 12 клеток и 4 действия. Что хранит массив P формы (12, 4, 12)?","options":["Вероятность оказаться в клетке s′, если в клетке s сделать действие a","Награду за переход из s в s′ при действии a","Ценность каждой клетки после каждой из 12 итераций","Сколько раз агент делал действие a в клетке s за 12 эпизодов"],"answer":0,"explain":"P[s, a, s′] — это p(s′ | s, a): куда может отнести ветер, если в клетке s выбрать действие a. Вторая таблица, R[s, a], хранит среднюю награду за один шаг. Вместе эти две таблицы и есть вся среда: с ними на любой вопрос о будущем можно ответить, не вызывая env.step.","ref":"Мир, на котором всё посчитаем: правила в виде двух таблиц"},{"id":"w2q03","topic":"Ценность заданной стратегии","text":"Чем ценность действия Q^π(s, a) отличается от ценности состояния V^π(s)?","options":["Q^π считается только для оптимальной стратегии, V^π — для любой","В Q^π нет дисконтирования","V^π — ценность для случайной стратегии, Q^π — для жадной","В Q^π первое действие зафиксировано, а по π играем со следующего шага; в V^π действие ещё не выбрано"],"answer":3,"explain":"Обе величины — ожидаемый дисконтированный return при игре по стратегии π. Разница только в моменте, в который мы смотрим: у V^π действие ещё предстоит выбрать, у Q^π оно уже сделано, и мы ждём, куда отнесёт ветер.","ref":"Если бы у нас были оценки: ценность заданной стратегии"},{"id":"w2q04","topic":"Связь V и Q","text":"В клетке s известны ценности всех действий Q^π(s, a). Как получить V^π(s)?","options":["Взять максимум по действиям","Сложить ценности всех действий","Усреднить ценности действий с весами π(a | s)","Усреднить по следующим клеткам с весами p(s′ | s, a)"],"answer":2,"explain":"В состоянии ход делает стратегия, поэтому V^π(s) = Σ π(a | s) · Q^π(s, a). Максимум получается только для жадной оптимальной стратегии: она ставит всю вероятность на лучшее действие, и среднее схлопывается в максимум. Усреднение по p(s′ | s, a) — это обратная связь, от V к Q, когда ход делает среда.","ref":"Если бы у нас были оценки: ценность заданной стратегии"},{"id":"w2q05","topic":"Почему учат именно Q","text":"Почему алгоритмы, которые учатся без модели среды (Q-learning, DQN), учат Q, а не V?","options":["Из Q стратегия получается сравнением чисел в клетке, а чтобы выбрать действие по V, нужна модель переходов p","Q хранит меньше чисел, чем V, поэтому учится быстрее","V нельзя оценить по сыгранным эпизодам","Для V не существует уравнения Беллмана"],"answer":0,"explain":"Имея Q, достаточно в каждой клетке выбрать действие с наибольшим числом. Имея только V, придётся считать, куда приведёт каждое действие, — а для этого нужна p(s′ | s, a). Q при этом хранит больше чисел: четыре на клетку против одного.","ref":"Если бы у нас были оценки: лучшая стратегия"},{"id":"w2q06","topic":"Принцип оптимальности","text":"Что следует из принципа оптимальности Беллмана: жадный выбор по оптимальной Q-функции оптимален?","options":["Оптимальная стратегия обязана быть случайной, чтобы продолжать исследование","Оптимальная стратегия зависит от номера шага в эпизоде","Есть оптимальная стратегия, которая детерминирована и не зависит от времени: в одной клетке всегда одно действие","Жадная стратегия по любой Q-функции оптимальна"],"answer":2,"explain":"Принцип звучит почти как тавтология, но у него есть содержание: искать оптимум можно среди простых стратегий — одно действие на клетку, одинаковое на любом шаге. Жадность оптимальна только по оптимальной Q*, а не по любой оценке.","ref":"Если бы у нас были оценки: лучшая стратегия"},{"id":"w2q07","topic":"Уравнение Беллмана","text":"Чем уравнение Беллмана для заданной стратегии π отличается от уравнения оптимальности?","options":["В уравнении оптимальности нет дисконта γ","Ровно одним местом: усреднение по следующему действию с весами π(a′ | s′) заменено на максимум по a′","Уравнение для π решается за одну итерацию, а уравнение оптимальности не решается вовсе","В уравнении оптимальности вероятности переходов заменены единицами"],"answer":1,"explain":"Оба уравнения получаются подстановкой одной связи между V и Q в другую. Отличие одно: где стоял выбор стратегии π, стоит максимум. В коде это тоже одна строка: вместо Q.max(axis=1) — (policy * Q).sum(axis=1).","ref":"Уравнение Беллмана"},{"id":"w2q08","topic":"Одна итерация","text":"Одна итерация value iteration записана как Q_new = R + GAMMA * (P @ Q.max(axis=1)). Что вычисляет P @ Q.max(axis=1)?","options":["Лучшее действие в каждой клетке","Сумму наград за эпизод","Вероятность дойти до выхода из каждой клетки","Для каждой пары «клетка, действие» — среднюю ценность клетки, куда отнесёт ветер, если дальше действовать наилучшим образом"],"answer":3,"explain":"Q.max(axis=1) — лучшее число в каждой строке, то есть текущая оценка ценности клетки. Умножение на P усредняет эти оценки с вероятностями переходов: для каждого из 48 сочетаний «клетка, действие» получается сумма из 12 слагаемых. Остаётся прибавить награду за шаг и обесценить будущее на γ.","ref":"Уравнение Беллмана: что именно считает одна итерация"},{"id":"w2q09","topic":"Плата за шаг","text":"Плату за шаг увеличили с −0.04 до −1. Что сделала оптимальная стратегия в клетке прямо под ямой?","options":["Шагнула прямо в яму: заплатить −1 один раз выгоднее, чем десяток шагов по −1","Осталась стоять на месте, чтобы не платить за шаги","Пошла длинным безопасным обходом, как при −0.04","Ничего не изменилось: плата за шаг не влияет на оптимальную стратегию"],"answer":0,"explain":"Оптимальная стратегия — следствие чисел, а не здравого смысла. При дорогих шагах любой путь к выходу обходится дороже, чем разовый штраф ямы. Шаг в стену не спасает: за него тоже платят. Такие переключения стратегии на глаз не угадываются — их показывает только решение уравнения.","ref":"Уравнение Беллмана: повторяем до сходимости"},{"id":"w2q10","topic":"Колобок и лотерея","text":"Билет стоит 10, выигрыш 1000. С вероятностью p билет проигрывает, и Колобок снова стоит у того же киоска. Начиная с какого p покупать билет невыгодно?","options":["p = 0.5","p = 0.9","p = 0.99","p = 0.999"],"answer":2,"explain":"Если покупка выгодна, уравнение оптимальности даёт Q* = 1000 − 10 / (1 − p), и это положительно только при p < 0.99. Порог 0.99 — ровно честная игра: билет за 10 при выигрыше 1000 один раз из ста.","ref":"Ещё один пример: Колобок и лотерея"},{"id":"w2q11","topic":"Марковское свойство","text":"Какое утверждение о марковском свойстве верно?","options":["Это свойство физического мира, и выбор состояния на него не влияет","Оно означает, что награда не зависит от действия","В любой видеоигре оно выполняется автоматически","Это требование к тому, что мы называем состоянием: по одной фотографии летящего мяча будущее не предсказать, нужна ещё скорость"],"answer":3,"explain":"Следующее состояние должно зависеть только от текущего состояния и действия, а не от истории. Выполнится это или нет, зависит от того, что мы включили в состояние. Если видно не всё, добавляют историю — например, DQN в Atari подаёт в сеть четыре последних кадра.","ref":"Это называется MDP"},{"id":"w2q12","topic":"Улучшение стратегии","text":"Оценили случайную стратегию и в каждой клетке выбрали действие с наибольшей Q^π. Что гарантировано?","options":["Новая стратегия сразу оптимальна в любой среде","Новая стратегия не хуже старой ни в одной клетке","В среднем новая стратегия лучше, но в отдельных клетках может стать хуже","Ничего: жадный шаг по оценкам плохой стратегии бессмыслен"],"answer":1,"explain":"Жадный шаг по ценностям текущей стратегии никогда не ухудшает её ни в одной клетке. В маленьком клетчатом мире одного шага от случайной стратегии хватило, чтобы дойти до оптимальной, но в общем случае шаги повторяют: оценить, улучшить, снова оценить — это policy iteration, неделя 3.","ref":"Как оценить стратегию и как её улучшить: один шаг улучшения"}]}];
+const LETTERS = "ABCDEFGHIJ";
+const SALT = "rl-course-2026";
+
+/* ---------- код результата: crc32 как в zlib ---------- */
+const CRC_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+
+function crc32(str) {
+  const bytes = new TextEncoder().encode(str);
+  let c = 0xFFFFFFFF;
+  for (const b of bytes) c = CRC_TABLE[(c ^ b) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+
+function resultCode(week, student, answers) {
+  const letters = answers.map(a => (a === null || a === undefined) ? "X" : LETTERS[a]).join("");
+  const payload = "W" + week + ":" + student + ":" + letters;
+  const crc = (crc32(payload + SALT) & 0xFFFF).toString(16).toUpperCase().padStart(4, "0");
+  return payload + ":" + crc;
+}
+
+/* ---------- состояние ---------- */
+const store = {
+  get(key, fallback) { try { const v = localStorage.getItem(key); return v === null ? fallback : v; } catch (e) { return fallback; } },
+  set(key, value) { try { localStorage.setItem(key, value); } catch (e) { /* приватное окно */ } },
+};
+
+let state = {
+  week: Number(store.get("rlquiz.week", String(QUIZZES[0].week))),
+  mode: store.get("rlquiz.mode", "train") === "exam" ? "exam" : "train",
+  student: store.get("rlquiz.student", ""),
+  started: false,
+  answers: {},
+  finished: false,
+};
+
+const quiz = () => QUIZZES.find(q => q.week === state.week) || QUIZZES[0];
+const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text !== undefined) n.textContent = text; return n; };
+
+function reset(keepMode) {
+  state.answers = {};
+  state.finished = false;
+  state.started = keepMode ? state.started : false;
+}
+
+/* ---------- отрисовка ---------- */
+function render() {
+  renderSwitches();
+  renderRail();
+  const main = document.getElementById("main");
+  main.replaceChildren();
+  if (state.mode === "exam" && !state.started) { main.append(gateView()); return; }
+  if (state.mode === "exam" && state.finished) { main.append(resultView()); return; }
+  main.append(ledeView());
+  const q = quiz();
+  q.questions.forEach((item, i) => main.append(questionView(item, i)));
+  if (state.mode === "exam") main.append(footbarView());
+  else main.append(trainFootView());
+}
+
+function renderSwitches() {
+  const weeks = document.getElementById("weeks");
+  weeks.replaceChildren();
+  QUIZZES.forEach(q => {
+    const b = el("button", null, "Лекция " + q.week);
+    b.type = "button";
+    b.setAttribute("aria-pressed", String(q.week === state.week));
+    b.onclick = () => { if (q.week === state.week) return; if (!confirmLeave()) return; state.week = q.week; store.set("rlquiz.week", String(q.week)); reset(); render(); };
+    weeks.append(b);
+  });
+  for (const [id, mode] of [["mode-train", "train"], ["mode-exam", "exam"]]) {
+    const b = document.getElementById(id);
+    b.setAttribute("aria-pressed", String(state.mode === mode));
+    b.onclick = () => { if (state.mode === mode) return; if (!confirmLeave()) return; state.mode = mode; store.set("rlquiz.mode", mode); reset(); render(); };
+  }
+}
+
+function confirmLeave() {
+  const answered = Object.keys(state.answers).length;
+  if (state.mode !== "exam" || state.finished || answered === 0) return true;
+  return confirm("Ответы на этот квиз сбросятся. Продолжить?");
+}
+
+function renderRail() {
+  const rail = document.getElementById("rail");
+  rail.replaceChildren();
+  const q = quiz();
+  q.questions.forEach((item, i) => {
+    const cell = el("i");
+    const given = state.answers[i];
+    if (given !== undefined) {
+      if (state.mode === "train") cell.classList.add(given === item.answer ? "ok" : "no");
+      else cell.classList.add("seen");
+    }
+    rail.append(cell);
+  });
+}
+
+function ledeView() {
+  const q = quiz();
+  const box = el("div", "lede");
+  box.append(el("h2", null, "Лекция " + q.week + ". " + q.title));
+  if (state.mode === "train") {
+    box.append(el("p", null, "Двенадцать вопросов по материалу лекции. Выбирайте ответ — разбор появится сразу, попытки не ограничены."));
+    const note = el("div", "note");
+    note.append(el("span", null, "Ничего не сохраняется и никуда не отправляется: это только для себя."));
+    box.append(note);
+  } else {
+    box.append(el("p", null, "Зачётный режим: правильность ответов не показывается. Отметьте все ответы и нажмите «Завершить» — страница соберёт код результата."));
+    const note = el("div", "note exam");
+    note.append(el("span", null, "Отвечает " + state.student + ". Ответы можно менять до нажатия «Завершить»."));
+    box.append(note);
+  }
+  return box;
+}
+
+function questionView(item, i) {
+  const q = quiz();
+  const wrap = el("section", "q");
+  const head = el("div", "q-head");
+  const meta = el("div", "q-meta");
+  const num = el("b", null, String(i + 1).padStart(2, "0") + " / " + String(q.questions.length).padStart(2, "0"));
+  meta.append(num, el("span", null, item.topic));
+  head.append(meta, el("div", "q-text", item.text));
+  wrap.append(head);
+
+  const given = state.answers[i];
+  const answered = given !== undefined;
+  const reveal = state.mode === "train" && answered;
+
+  const opts = el("div", "opts");
+  opts.setAttribute("role", "radiogroup");
+  opts.setAttribute("aria-label", "Варианты ответа");
+  item.options.forEach((text, k) => {
+    const b = el("button", "opt");
+    b.type = "button";
+    b.setAttribute("role", "radio");
+    b.setAttribute("aria-checked", String(given === k));
+    b.append(el("span", "key", LETTERS[k]), el("span", null, text));
+    if (reveal) {
+      b.disabled = true;
+      if (k === item.answer) b.classList.add("correct");
+      else if (k === given) b.classList.add("wrong");
+    }
+    b.onclick = () => {
+      if (state.mode === "train" && state.answers[i] !== undefined) return;
+      state.answers[i] = k;
+      render();
+      if (state.mode === "train") wrap.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    };
+    opts.append(b);
+  });
+  wrap.append(opts);
+
+  if (reveal) {
+    const why = el("div", "why");
+    const ok = given === item.answer;
+    const verdict = el("div", "verdict " + (ok ? "ok" : "no"), ok ? "Верно" : "Неверно, правильный ответ " + LETTERS[item.answer]);
+    why.append(verdict, el("div", null, item.explain), el("div", "ref", "Лекция " + q.week + ": " + item.ref));
+    wrap.append(why);
+  }
+  return wrap;
+}
+
+function trainFootView() {
+  const q = quiz();
+  const box = el("div", "result");
+  const answered = Object.keys(state.answers).length;
+  const right = Object.entries(state.answers).filter(([i, a]) => q.questions[i].answer === a).length;
+  if (answered === q.questions.length) {
+    box.append(el("div", "score", "Верно " + right + " из " + q.questions.length + (right >= q.pass_score ? " — уверенно" : " — стоит перечитать лекцию")));
+  } else if (answered > 0) {
+    box.append(el("div", "hint", "Отвечено " + answered + " из " + q.questions.length + ", верно " + right + "."));
+  }
+  const row = el("div", "code-panel");
+  row.style.background = "transparent";
+  row.style.border = "0";
+  row.style.padding = "0";
+  const again = el("button", "btn ghost", "Пройти заново");
+  again.type = "button";
+  again.onclick = () => { reset(); render(); window.scrollTo({ top: 0, behavior: "smooth" }); };
+  const toExam = el("button", "btn", "Перейти к зачёту");
+  toExam.type = "button";
+  toExam.onclick = () => { state.mode = "exam"; store.set("rlquiz.mode", "exam"); reset(); render(); window.scrollTo({ top: 0 }); };
+  const rowBox = el("div", "row");
+  rowBox.style.display = "flex";
+  rowBox.style.gap = "10px";
+  rowBox.style.flexWrap = "wrap";
+  rowBox.append(again, toExam);
+  box.append(rowBox);
+  return box;
+}
+
+function gateView() {
+  const q = quiz();
+  const box = el("form", "gate");
+  box.append(el("h2", null, "Зачёт по лекции " + q.week));
+  box.append(el("p", "hint", "Введите личный код, который выдал преподаватель, — он войдёт в код результата. Затем ответьте на все двенадцать вопросов: правильность в этом режиме не показывается."));
+  const label = el("label", null, "Личный код студента");
+  const input = el("input");
+  input.type = "text";
+  input.id = "student-code";
+  input.placeholder = "например IVAN23";
+  input.value = state.student;
+  input.autocomplete = "off";
+  input.spellcheck = false;
+  label.append(input);
+  const err = el("div", "err");
+  err.id = "gate-err";
+  const start = el("button", "btn", "Начать");
+  start.type = "submit";
+  box.append(label, err, start);
+  box.onsubmit = (e) => {
+    e.preventDefault();
+    const code = input.value.trim().toUpperCase();
+    if (!/^[A-Z0-9]{3,12}$/.test(code)) {
+      err.textContent = "Код состоит из 3–12 латинских букв и цифр — проверьте раскладку.";
+      return;
+    }
+    state.student = code;
+    store.set("rlquiz.student", code);
+    state.started = true;
+    render();
+  };
+  return box;
+}
+
+function footbarView() {
+  const q = quiz();
+  const bar = el("div", "footbar");
+  const answered = Object.keys(state.answers).length;
+  bar.append(el("div", "count", "Отвечено " + answered + " из " + q.questions.length));
+  const done = el("button", "btn", "Завершить");
+  done.type = "button";
+  done.disabled = answered === 0;
+  done.onclick = () => {
+    if (answered < q.questions.length && !confirm("Без ответа осталось " + (q.questions.length - answered) + " вопросов, они пойдут в ноль. Завершить?")) return;
+    state.finished = true;
+    render();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+  bar.append(done);
+  return bar;
+}
+
+function resultView() {
+  const q = quiz();
+  const answers = q.questions.map((_, i) => state.answers[i] === undefined ? null : state.answers[i]);
+  const code = resultCode(q.week, state.student, answers);
+  const box = el("div", "result");
+  box.append(el("h2", null, "Ответы записаны"));
+  box.append(el("p", "hint", "Баллы считает преподаватель: страница не знает, какие ответы верные, и никуда их не отправляет. Скопируйте код и сдайте его вместе с домашним заданием."));
+
+  const panel = el("div", "code-panel");
+  panel.append(el("div", "label", "Код результата"));
+  const codeEl = el("div", "code", code);
+  codeEl.id = "result-code";
+  panel.append(codeEl);
+  const row = el("div", "row");
+  const copy = el("button", "btn", "Скопировать");
+  copy.type = "button";
+  copy.onclick = async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      copy.textContent = "Скопировано";
+      setTimeout(() => { copy.textContent = "Скопировать"; }, 1600);
+    } catch (e) {
+      const sel = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(codeEl);
+      sel.removeAllRanges();
+      sel.addRange(range);
+      copy.textContent = "Выделено — нажмите Ctrl+C";
+    }
+  };
+  row.append(copy, el("span", "hint", "Код действует только для вашего личного кода " + state.student + "."));
+  panel.append(row);
+  box.append(panel);
+
+  const steps = el("ol", "steps");
+  const li1 = el("li");
+  li1.append(document.createTextNode("Откройте свой репозиторий с домашним заданием и файл "));
+  li1.append(el("code", null, "quiz/week" + String(q.week).padStart(2, "0") + ".txt"));
+  li1.append(document.createTextNode("."));
+  const li2 = el("li", null, "Вставьте код одной строкой вместо подсказки и сохраните.");
+  const li3 = el("li", null, "Отправьте изменения — проверка в pull request скажет, что код разобрался.");
+  steps.append(li1, li2, li3);
+  box.append(steps);
+
+  const row2 = el("div", "row");
+  row2.style.display = "flex";
+  row2.style.gap = "10px";
+  row2.style.flexWrap = "wrap";
+  const again = el("button", "btn ghost", "Вернуться к тренировке");
+  again.type = "button";
+  again.onclick = () => { state.mode = "train"; store.set("rlquiz.mode", "train"); reset(); render(); window.scrollTo({ top: 0 }); };
+  row2.append(again);
+  box.append(row2);
+  return box;
+}
+
+render();
+</script>
