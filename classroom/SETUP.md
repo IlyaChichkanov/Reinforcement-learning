@@ -1,6 +1,6 @@
 # Сдача работ через GitHub Classroom
 
-Схема: у каждого студента свой приватный репозиторий с заданием одной недели. В нём он решает ноутбук и вставляет код результата квиза; автопроверка говорит, что работа сдана полностью; баллы выставляете вы.
+Схема: у каждого студента свой приватный репозиторий с заданием одного блока (две лекции, одна домашка). В нём он решает ноутбук и вставляет коды результатов двух квизов — по каждой лекции блока; автопроверка говорит, что работа сдана полностью; баллы выставляете вы.
 
 ## Один раз
 
@@ -14,16 +14,16 @@
    Получится `roster.csv` с личным кодом каждого студента. Раздайте коды — студент вводит свой код на странице квиза в зачётном режиме. Файл `roster.csv` не коммитится (он в `.gitignore`).
 3. **Страница квизов.** Включите GitHub Pages для этого репозитория: Settings → Pages → Source: Deploy from a branch → ветка `main`, папка `/docs`. Через минуту страница будет доступна по адресу вида `https://ilyachichkanov.github.io/Reinforcement-learning/`.
 
-## На каждую неделю
+## На каждый блок
 
-1. **Template repository.** Создайте пустой репозиторий (например `rl-hw-week01`), скопируйте в него содержимое `classroom/template/` и ноутбук недели:
+1. **Template repository.** Создайте пустой репозиторий (например `rl-hw-block1`), скопируйте в него содержимое `classroom/template/` и ноутбук блока:
 
    ```bash
-   cp -r classroom/template/. ../rl-hw-week01/
-   cp 01-intro/homework/homework.ipynb ../rl-hw-week01/homework.ipynb
+   cp -r classroom/template/. ../rl-hw-block1/
+   cp homeworks/hw1/homework.ipynb ../rl-hw-block1/homework.ipynb
    ```
 
-   В настройках репозитория поставьте галочку **Template repository**.
+   В шаблоне уже лежат `quiz/week01.txt` и `quiz/week02.txt` — это недели блока 1. Для следующих блоков переименуйте их под номера лекций (`week03.txt`, `week04.txt` и так далее). В настройках репозитория поставьте галочку **Template repository**.
 2. **Задание в classroom.** New assignment → individual → в качестве стартового кода выберите созданный template. Автопроверку (autograding) в интерфейсе classroom включать не нужно: workflow уже лежит в шаблоне и запускается сам.
 3. Раздайте ссылку-приглашение. У каждого студента появится репозиторий и в нём pull request «Feedback», куда автопроверка пишет отчёт.
 
@@ -41,7 +41,7 @@ uv run python tools/grade_quiz.py collected/ --roster roster.csv --out journal.c
 
 ```bash
 gh repo list ВАША-ОРГАНИЗАЦИЯ --limit 200 --json name --jq '.[].name' \
-  | grep '^rl-hw-week01-' \
+  | grep '^rl-hw-block1-' \
   | xargs -I{} gh repo clone ВАША-ОРГАНИЗАЦИЯ/{} collected/{}
 ```
 
