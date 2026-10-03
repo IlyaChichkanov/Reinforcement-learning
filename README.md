@@ -30,7 +30,7 @@
 <td>3</td>
 <td>15.09</td>
 <td>Основные алгоритмы RL: value based</td>
-<td></td>
+<td><a href="03-value-based/lecture/lecture.ipynb">лекция</a> · <a href="https://ilyachichkanov.github.io/Reinforcement-learning/">квиз</a></td>
 </tr>
 <tr>
 <td>4</td>

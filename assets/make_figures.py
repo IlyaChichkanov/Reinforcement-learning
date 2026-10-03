@@ -1039,9 +1039,698 @@ def bellman_family():
     plt.close(fig)
 
 
+# ---- лекция 3: обучение без модели ---------------------------------------------------------------
+
+
+def value_meaning():
+    """Ценность = средний return: V(s) — из клетки по стратегии, Q(s, a) — то же с заданным первым шагом."""
+    import sys
+    sys.path.insert(0, str(OUT.parent / "02-environments" / "lecture"))
+    from gridworld import GridWorld, mdp_matrices, solve_q_star, discounted_return    # noqa: E402
+    from gridworld_plots import draw_grid                                            # noqa: E402
+
+    env = GridWorld()
+    Q = solve_q_star(*mdp_matrices(env))
+    pi = Q.argmax(axis=1)
+
+    def episode(seed, first=None):                    # эпизод из старта по π*; first — заданный первый шаг
+        env.reset(seed=seed)
+        s, states, rewards = env.start, [env.start], []
+        for t in range(60):
+            s, r, terminated, _, _ = env.step(int(first if t == 0 and first is not None else pi[s]))
+            states.append(s); rewards.append(r)
+            if terminated:
+                break
+        return states, rewards
+
+    def center(s):
+        r, c = divmod(s, env.n_cols)
+        return c + 0.5, r + 0.5
+
+    def route(ax, cells, color, lw=3.0):
+        for a, b in zip(cells[:-1], cells[1:]):
+            end = env.is_terminal(b)                  # в клетке выхода стоит «+1» — не наезжаем на надпись
+            ax.add_patch(FancyArrowPatch(center(a), center(b), arrowstyle="-|>", mutation_scale=16, lw=lw,
+                                         color=color, shrinkA=9, shrinkB=24 if end else 9))
+
+    rows = [(None, [11, 2, 5, 1], "$V(8)$ — сколько в среднем соберём из старта",
+             f"по тысячам эпизодов:  $V^*(8)$ = {Q[8].max():+.2f}"),
+            (2, [2, 8, 7, 4], "$Q(8, →)$ — то же, но первый шаг задан: «вправо»",
+             f"по тысячам эпизодов:  $Q^*(8, →)$ = {Q[8, 2]:+.2f}  — меньше $V^*(8)$:\nшаг вправо из старта не лучший")]
+    fig = plt.figure(figsize=(13, 7.4))
+    gs = fig.add_gridspec(2, 2, width_ratios=[1, 1.65], hspace=0.3, wspace=0.04)
+    fig.suptitle("Ценность — это средний return:  $G = r_0 + \\gamma r_1 + \\gamma^2 r_2 + \\dots$",
+                 fontsize=14.5, weight="bold", color=C_TEXT, y=0.99)
+    for i, (first, seeds, head, exact) in enumerate(rows):
+        ax_map, ax_txt = fig.add_subplot(gs[i, 0]), fig.add_subplot(gs[i, 1])
+        draw_grid(env, ax_map, start_label=False)
+        ax_map.text(0.5, 2.85, "старт", ha="center", va="center", fontsize=8.5, color=C_GREY)
+        if first is None:
+            route(ax_map, [8, 4, 0, 1, 2, 3], C_AGENT)
+            ax_map.set_title("обычный путь стратегии: вверх и вправо", fontsize=10, color=C_GREY)
+        else:
+            route(ax_map, [8, 9], C_ACCENT, lw=3.4)
+            ax_map.add_patch(FancyArrowPatch((1.5, 2.62), (0.5, 2.62), arrowstyle="-|>", mutation_scale=14, lw=1.8,
+                                             color=C_GREY, linestyle="--", shrinkA=9, shrinkB=9))
+            route(ax_map, [8, 4, 0, 1, 2, 3], C_AGENT)
+            ax_map.set_title("красный шаг задан, дальше — по стратегии", fontsize=10, color=C_GREY)
+        ax_txt.set_xlim(0, 1); ax_txt.set_ylim(0, 1); ax_txt.axis("off")
+        ax_txt.text(0.03, 0.95, head, ha="left", va="center", fontsize=13, weight="bold", color=C_TEXT)
+        returns = []
+        for k, seed in enumerate(seeds):
+            states, rewards = episode(seed, first)
+            G = discounted_return(rewards)
+            returns.append(G)
+            y = 0.79 - 0.115 * k
+            ax_txt.text(0.03, y, f"эпизод {k + 1}", ha="left", va="center", fontsize=11, color=C_TEXT)
+            for t, r in enumerate(rewards):                  # каждый шаг — квадратик, последний — выход
+                last = t == len(rewards) - 1
+                color = (C_ENV if r > 0 else C_ACCENT) if last else ("#c9c9c9" if not (first is not None and t == 0) else C_ACCENT)
+                ax_txt.add_patch(Rectangle((0.19 + t * 0.036, y - 0.035), 0.03, 0.07, facecolor=color, edgecolor="none"))
+            ax_txt.text(0.19 + len(rewards) * 0.036 + 0.02, y, f"{len(rewards)} шагов,  G = {G:+.2f}",
+                        ha="left", va="center", fontsize=11.5, color=C_TEXT, weight="bold")
+        ax_txt.text(0.03, 0.24, f"среднее четырёх:  {np.mean(returns):+.2f}", ha="left", va="center", fontsize=12.5,
+                    color=C_AGENT, weight="bold")
+        ax_txt.text(0.03, 0.07, exact, ha="left", va="center", fontsize=11.5, color=C_ACCENT)
+    fig.text(0.5, -0.01, "квадратик — шаг: серый — по стратегии (−0.04), красный — заданный первый, зелёный — вход в выход (+1).\n"
+             "Ветер удлиняет одни эпизоды и укорачивает другие, поэтому ценность — среднее по многим", ha="center", fontsize=11, color=C_GREY)
+    fig.savefig(OUT / "value_meaning.png", dpi=DPI, bbox_inches="tight", pad_inches=0.2)
+    plt.close(fig)
+
+
+def _four_cases_layout(fig, gs, head_y, letter="V"):
+    """Подписи столбцов (стратегия) и строк (среда) для картинок 2 × 2 лекции 3; letter — V или Q."""
+    axes = [[fig.add_subplot(gs[i, j]) for j in range(2)] for i in range(2)]
+    for j, text in enumerate([f"стратегия «бросаю кубик»:  ${letter}^\\pi$", f"лучшая стратегия:  ${letter}^*$"]):
+        box = axes[0][j].get_position()
+        fig.text((box.x0 + box.x1) / 2, head_y, text, ha="center", va="center", fontsize=14, weight="bold",
+                 color=C_AGENT if j == 0 else C_ACCENT)
+    for i, text in enumerate(["с ветром\n0.8 / 0.1 / 0.1", "без ветра"]):
+        box = axes[i][0].get_position()
+        fig.text(0.015, (box.y0 + box.y1) / 2, text, ha="left", va="center", fontsize=13, weight="bold", color=C_ENV)
+    return axes
+
+
+def values_four_cases():
+    """V^π «кубика» против V* — в мире с ветром и без: ценность зависит и от стратегии, и от среды."""
+    import sys
+    sys.path.insert(0, str(OUT.parent / "02-environments" / "lecture"))
+    from gridworld import GridWorld, mdp_matrices, solve_q_star, uniform_policy, ARROWS, GAMMA    # noqa: E402
+    from gridworld_plots import plot_values                                                   # noqa: E402
+
+    fig = plt.figure(figsize=(12.5, 9.6))
+    gs = fig.add_gridspec(2, 2, hspace=0.38, wspace=0.1, left=0.14, right=0.98, top=0.9, bottom=0.2)
+    axes = _four_cases_layout(fig, gs, head_y=0.95)
+    captions = {(0, 0): "среднее по кубику и по ветру", (0, 1): "лучшее действие, среднее по ветру",
+                (1, 0): "среднее только по кубику", (1, 1): "никаких средних: один лучший путь"}
+    start_star = {}
+    for i, noise in enumerate([0.1, 0.0]):
+        env = GridWorld(noise=noise)
+        P, R = mdp_matrices(env)
+        Q_star = solve_q_star(P, R)
+        pol = uniform_policy(env)
+        Q_pi = np.zeros_like(Q_star)
+        for _ in range(3000):                                   # оценка стратегии, как в лекции 2
+            Q_pi = R + GAMMA * (P @ (pol * Q_pi).sum(axis=1))
+        for j, V in enumerate([(pol * Q_pi).sum(axis=1), Q_star.max(axis=1)]):
+            ax = axes[i][j]
+            plot_values(V, env, ax=ax, text_y=0.3 if j else 0.5, fontsize=10.5 if j else 11.5)
+            if j:                                               # стрелки лучшей стратегии; при ничьей — обе
+                for s in range(env.n_states):
+                    if env.is_wall(s) or env.is_terminal(s):
+                        continue
+                    r, c = divmod(s, env.n_cols)
+                    best = "".join(ARROWS[a] for a in range(4) if Q_star[s, a] >= Q_star[s].max() - 1e-9)
+                    ax.text(c + 0.5, r + 0.6, best, ha="center", va="center", fontsize=15, color="#222")
+                start_star[noise] = V[env.start]
+            ax.text(2.0, 3.28, f"{captions[i, j]}   ·   старт {V[env.start]:+.2f}", ha="center", va="top",
+                    fontsize=11.5, color=C_TEXT)
+    notes = [("$V^\\pi \\leq V^*$ в каждой клетке: лучшая стратегия по определению не хуже любой другой", C_TEXT),
+             ("Кубику ветер не мешает: он и так ходит куда попало, поэтому левые карты одинаковы", C_TEXT),
+             (f"Без ветра $V^*$(старт) = {start_star[0.0]:+.2f} — это return одного лучшего пути из 5 шагов; "
+              f"с ветром путь в среднем длиннее: {start_star[0.1]:+.2f}", C_ACCENT)]
+    for k, (text, color) in enumerate(notes):
+        fig.text(0.5, 0.115 - 0.042 * k, text, ha="center", va="center", fontsize=12, color=color,
+                 weight="bold" if color == C_ACCENT else "normal")
+    fig.savefig(OUT / "values_four_cases.png", dpi=DPI, bbox_inches="tight", pad_inches=0.2)
+    plt.close(fig)
+
+
+def where_we_average():
+    """Откуда разница между V^π и V*, с ветром и без: где в дереве стоит среднее, а где максимум."""
+    fig = plt.figure(figsize=(13, 9.4))
+    gs = fig.add_gridspec(2, 2, hspace=0.12, wspace=0.08, left=0.13, right=0.99, top=0.9, bottom=0.15)
+    axes = _four_cases_layout(fig, gs, head_y=0.94)
+    formulas = {(0, 0): ("$V^\\pi(s) = \\sum_a \\pi(a|s) \\sum_{s'} p(s'|s,a)\\,[\\,r + \\gamma V^\\pi(s')\\,]$",
+                         "среднее по стратегии и по ветру", C_AGENT),
+                (0, 1): ("$V^*(s) = \\max_a \\sum_{s'} p(s'|s,a)\\,[\\,r + \\gamma V^*(s')\\,]$",
+                         "максимум по действиям, среднее по ветру", C_ACCENT),
+                (1, 0): ("$V^\\pi(s) = \\sum_a \\pi(a|s)\\,[\\,r + \\gamma V^\\pi(s'_a)\\,]$",
+                         "среднее только по стратегии", C_AGENT),
+                (1, 1): ("$V^*(s) = \\max_a\\,[\\,r + \\gamma V^*(s'_a)\\,]$",
+                         "никаких средних: лучший путь", C_ACCENT)}
+    xs = [1.6, 3.85, 6.15, 8.4]
+    best = 3                                                    # какое действие «лучшее» на рисунке
+    for i, windy in enumerate([True, False]):
+        for j, optimal in enumerate([False, True]):
+            ax = axes[i][j]
+            ax.set_xlim(0, 10); ax.set_ylim(0, 6); ax.axis("off")
+            ax.scatter([5], [5.3], s=900, color=C_AGENT, zorder=3)
+            ax.text(5, 5.3, "$s$", ha="center", va="center", fontsize=15, color="white", weight="bold", zorder=4)
+            for k, (x, arrow) in enumerate(zip(xs, "←↓→↑")):
+                on = not optimal or k == best
+                color = (C_ACCENT if optimal else C_AGENT) if on else "#cccccc"
+                ax.plot([5, x], [5.05, 3.95], color=color, lw=2.6 if on else 1.0, ls="-" if on else (0, (3, 3)), zorder=1)
+                ax.scatter([x], [3.85], s=70, color=C_TEXT if on else "#cccccc", zorder=3)
+                ax.text(x - 0.32, 3.95, arrow, ha="center", va="center", fontsize=13, color=C_TEXT if on else "#bbbbbb")
+                if not optimal:
+                    ax.text((5 + x) / 2 + (0.18 if x > 5 else -0.18), 4.55, "¼", ha="center", va="center",
+                            fontsize=12, color=C_AGENT, weight="bold")
+                elif on:
+                    ax.text((5 + x) / 2 + 0.55, 4.55, "max", ha="center", va="center", fontsize=12, color=C_ACCENT,
+                            weight="bold")
+                outs = [(-0.55, "0.8"), (0.0, "0.1"), (0.55, "0.1")] if windy else [(0.0, "1")]
+                for dx, p in outs:
+                    ax.plot([x, x + dx], [3.75, 2.75], color=C_ENV if on else "#dddddd", lw=1.8 if on else 0.8, zorder=1)
+                    ax.scatter([x + dx], [2.6], s=150, facecolor="white", edgecolor=C_ENV if on else "#cccccc",
+                               lw=1.5, zorder=3)
+                    show_p = windy and on and (optimal or k == 0)
+                    if show_p:
+                        ax.text(x + dx, 2.22, p, ha="center", va="center", fontsize=10, color=C_ENV, weight="bold")
+            formula, caption, color = formulas[i, j]
+            ax.text(5, 1.3, formula, ha="center", va="center", fontsize=13.5, color=C_TEXT)
+            ax.text(5, 0.5, caption, ha="center", va="center", fontsize=12.5, color=color, weight="bold")
+    fig.text(0.5, 0.115, "ход агента: синие рёбра — среднее по стратегии, красное — максимум;   ход среды: зелёные рёбра — исход выбирает ветер",
+             ha="center", fontsize=12, color=C_TEXT)
+    fig.text(0.5, 0.075, "Без ветра у каждого действия один исход $s'_a$, и среднее по ветру исчезает. "
+             "Отличие $V^\\pi$ от $V^*$ — всегда в одном месте: среднее по стратегии или максимум.",
+             ha="center", fontsize=12, color=C_TEXT)
+    fig.text(0.5, 0.035, "Для $Q$ то же самое:  $Q^\\pi(s,a)$ — первый шаг $a$, дальше по $\\pi$;   "
+             "$Q^*(s,a)$ — первый шаг $a$, дальше лучшим образом", ha="center", fontsize=12, color=C_GREY)
+    fig.savefig(OUT / "where_we_average.png", dpi=DPI, bbox_inches="tight", pad_inches=0.2)
+    plt.close(fig)
+
+
+def _q_tables(noise):
+    """Q^π «кубика» и Q* для клетчатого мира с заданной силой ветра."""
+    import sys
+    sys.path.insert(0, str(OUT.parent / "02-environments" / "lecture"))
+    from gridworld import GridWorld, mdp_matrices, solve_q_star, uniform_policy, GAMMA    # noqa: E402
+    env = GridWorld(noise=noise)
+    P, R = mdp_matrices(env)
+    pol = uniform_policy(env)
+    Q_pi = np.zeros(P.shape[:2])
+    for _ in range(3000):                                       # оценка стратегии, как в лекции 2
+        Q_pi = R + GAMMA * (P @ (pol * Q_pi).sum(axis=1))
+    return env, Q_pi, solve_q_star(P, R)
+
+
+def q_four_cases():
+    """Q^π «кубика» против Q* — в мире с ветром и без: четыре числа в клетке."""
+    tables = {noise: _q_tables(noise) for noise in (0.1, 0.0)}
+    from gridworld_plots import plot_q                         # noqa: E402  (путь к модулям добавил _q_tables)
+    from gridworld import GAMMA                                 # noqa: E402
+    fig = plt.figure(figsize=(13.5, 10.6))
+    gs = fig.add_gridspec(2, 2, hspace=0.34, wspace=0.08, left=0.14, right=0.99, top=0.9, bottom=0.22)
+    axes = _four_cases_layout(fig, gs, head_y=0.95, letter="Q")
+    captions = {(0, 0): "среднее по ветру, потом по кубику", (0, 1): "среднее по ветру, потом максимум",
+                (1, 0): "только среднее по кубику", (1, 1): "никаких средних"}
+    for i, noise in enumerate([0.1, 0.0]):
+        env, Q_pi, Q_star = tables[noise]
+        for j, Q in enumerate([Q_pi, Q_star]):
+            ax = axes[i][j]
+            plot_q(Q, env, ax=ax)
+            for t in ax.texts:                                  # числа в треугольниках покрупнее
+                if t.get_fontsize() < 7:
+                    t.set_fontsize(7.5)
+            ax.text(2.0, 3.28, f"{captions[i, j]}   ·   Q(8, ↑) = {Q[8, 3]:+.2f}", ha="center", va="top",
+                    fontsize=11.5, color=C_TEXT)
+    _, Qp_wind, _ = tables[0.1]
+    _, Qp_calm, Qs_calm = tables[0.0]
+    V_calm = Qs_calm.max(axis=1)
+    notes = [("$Q^\\pi \\leq Q^*$ для каждой клетки и каждого действия", C_TEXT, "normal"),
+             ("В отличие от $V^\\pi$, у кубика $Q^\\pi$ с ветром и без разное: первый шаг задан, "
+              f"и куда он приведёт, решает ветер.  $Q^\\pi(6, ↑)$:  {Qp_wind[6, 3]:+.2f}  против  {Qp_calm[6, 3]:+.2f}",
+              C_TEXT, "normal"),
+             (f"Без ветра $Q^*(s,a) = r + \\gamma\\, V^*(s'_a)$:   $Q^*(8, →)$ = −0.04 + {GAMMA}·({V_calm[9]:+.2f}) "
+              f"= {Qs_calm[8, 2]:+.2f}", C_ACCENT, "bold")]
+    for k, (text, color, weight) in enumerate(notes):
+        fig.text(0.5, 0.125 - 0.042 * k, text, ha="center", va="center", fontsize=12, color=color, weight=weight)
+    fig.savefig(OUT / "q_four_cases.png", dpi=DPI, bbox_inches="tight", pad_inches=0.2)
+    plt.close(fig)
+
+
+def q_where_we_average():
+    """Деревья для Q: действие уже сделано, поэтому сначала ход среды, потом ход агента в s'."""
+    fig = plt.figure(figsize=(13, 9.8))
+    gs = fig.add_gridspec(2, 2, hspace=0.12, wspace=0.08, left=0.13, right=0.99, top=0.9, bottom=0.18)
+    axes = _four_cases_layout(fig, gs, head_y=0.94, letter="Q")
+    formulas = {(0, 0): ("$Q^\\pi(s,a) = \\sum_{s'} p(s'|s,a)\\,[\\,r + \\gamma \\sum_{a'} \\pi(a'|s')\\, Q^\\pi(s',a')\\,]$",
+                         "среднее по ветру, потом по стратегии", C_AGENT),
+                (0, 1): ("$Q^*(s,a) = \\sum_{s'} p(s'|s,a)\\,[\\,r + \\gamma \\max_{a'}\\, Q^*(s',a')\\,]$",
+                         "среднее по ветру, потом максимум", C_ACCENT),
+                (1, 0): ("$Q^\\pi(s,a) = r + \\gamma \\sum_{a'} \\pi(a'|s'_a)\\, Q^\\pi(s'_a,a')$",
+                         "только среднее по стратегии", C_AGENT),
+                (1, 1): ("$Q^*(s,a) = r + \\gamma \\max_{a'}\\, Q^*(s'_a,a')$",
+                         "никаких средних: лучшее продолжение", C_ACCENT)}
+    best = 3                                                    # какое действие в s' «лучшее» на рисунке
+    for i, windy in enumerate([True, False]):
+        for j, optimal in enumerate([False, True]):
+            ax = axes[i][j]
+            ax.set_xlim(0, 10); ax.set_ylim(0, 6); ax.axis("off")
+            _box(ax, (4.2, 5.0), 1.6, 0.62, "$s,\\ a$", C_AGENT, fontsize=14, radius=0.08)
+            outs = [(2.0, "0.8"), (5.0, "0.1"), (8.0, "0.1")] if windy else [(5.0, "")]
+            spread = [-0.9, -0.3, 0.3, 0.9] if windy else [-2.4, -0.8, 0.8, 2.4]
+            for g, (x, p) in enumerate(outs):
+                ax.plot([5, x], [4.98, 3.95], color=C_ENV, lw=2.4, zorder=1)
+                if p:
+                    ax.text((5 + x) / 2 + (0.35 if x == 5 else (-0.3 if x < 5 else 0.3)), 4.55 if x != 5 else 4.45,
+                            p, ha="center", va="center", fontsize=11, color=C_ENV, weight="bold")
+                ax.scatter([x], [3.75], s=520, color=C_ENV, zorder=3)
+                ax.text(x, 3.75, "$s'$", ha="center", va="center", fontsize=12, color="white", weight="bold", zorder=4)
+                for k, (dx, arrow) in enumerate(zip(spread, "←↓→↑")):
+                    on = not optimal or k == best
+                    color = (C_ACCENT if optimal else C_AGENT) if on else "#cccccc"
+                    ax.plot([x, x + dx], [3.52, 2.6], color=color, lw=2.4 if on else 1.0,
+                            ls="-" if on else (0, (3, 3)), zorder=1)
+                    ax.scatter([x + dx], [2.55], s=45, color=C_TEXT if on else "#cccccc", zorder=3)
+                    ax.text(x + dx, 2.2, arrow, ha="center", va="center", fontsize=11 if windy else 13,
+                            color=C_TEXT if on else "#bbbbbb")
+                    label_here = g == 0 or not windy
+                    if label_here and not optimal and (not windy or k in (0, 3)):
+                        ax.text(x + dx * 0.55 + (-0.22 if dx < 0 else 0.22), 3.1, "¼", ha="center", va="center",
+                                fontsize=11, color=C_AGENT, weight="bold")
+                    if label_here and optimal and on:
+                        ax.text(x + dx * 0.55 + 0.45, 3.1, "max", ha="center", va="center", fontsize=11,
+                                color=C_ACCENT, weight="bold")
+            formula, caption, color = formulas[i, j]
+            ax.text(5, 1.3, formula, ha="center", va="center", fontsize=13, color=C_TEXT)
+            ax.text(5, 0.5, caption, ha="center", va="center", fontsize=12.5, color=color, weight="bold")
+    fig.text(0.5, 0.145, "ход среды: зелёные рёбра — исход выбирает ветер;   "
+             "ход агента в $s'$: синие рёбра — среднее по стратегии, красное — максимум",
+             ha="center", fontsize=12, color=C_TEXT)
+    fig.text(0.5, 0.105, "У $Q$ первый ход уже сделан, поэтому дерево начинается со среды. "
+             "Отличие $Q^\\pi$ от $Q^*$ — снова в одном месте: что делаем в $s'$.",
+             ha="center", fontsize=12, color=C_TEXT)
+    fig.text(0.5, 0.065, "Правые части станут целями обучения:  SARSA учит $Q^\\pi$,  Q-learning учит $Q^*$  (разделы 6–7)",
+             ha="center", fontsize=12, color=C_ACCENT, weight="bold")
+    fig.savefig(OUT / "q_where_we_average.png", dpi=DPI, bbox_inches="tight", pad_inches=0.2)
+    plt.close(fig)
+
+
+def _inline(ax, x, y, pieces, **kw):
+    """Кусочки текста разного цвета подряд в одну строку, начиная с x. Возвращает правый край."""
+    renderer = ax.figure.canvas.get_renderer()
+    inv = ax.transData.inverted()
+    for text, color in pieces:
+        t = ax.text(x, y, text, color=color, ha="left", va="baseline", **kw)
+        x = inv.transform((t.get_window_extent(renderer=renderer).x1, 0))[0]
+    return x
+
+
+def pe_update():
+    """evaluate_policy по строкам: ход агента (среднее по π) и ход среды (среднее по ветру) — формула и код."""
+    fig, ax = plt.subplots(figsize=(13, 6.4))
+    ax.set_xlim(0, 13); ax.set_ylim(0, 6.4); ax.axis("off")
+    ax.text(6.5, 6.05, "Оценка стратегии: две формулы — две строки кода", ha="center", fontsize=14.5,
+            weight="bold", color=C_TEXT)
+    math, code = dict(fontsize=17), dict(fontsize=15, family="monospace", weight="bold")
+    rows = [(4.75, C_AGENT, "шаг 1: ход агента", "усредняем по стратегии",
+             [("$V_k(s) \\;=\\; $", C_TEXT), ("$\\sum_a \\pi(a|s)$", C_AGENT), ("$\\,Q_k(s,a)$", C_TEXT)],
+             [("V = ", C_TEXT), ("(policy", C_AGENT), (" * Q)", C_TEXT), (".sum(axis=1)", C_AGENT)]),
+            (2.6, C_ENV, "шаг 2: ход среды", "усредняем по ветру",
+             [("$Q_{k+1}(s,a) \\;=\\; $", C_TEXT), ("$r(s,a)$", C_REWARD), ("$\\;+\\;\\gamma$", C_PURPLE),
+              ("$\\,\\sum_{s'} p(s'|s,a)\\, V_k(s')$", C_ENV)],
+             [("Q = ", C_TEXT), ("R", C_REWARD), (" + ", C_TEXT), ("GAMMA", C_PURPLE), (" * ", C_TEXT),
+              ("(P @ V)", C_ENV)])]
+    for y, color, head, sub, formula, line in rows:
+        ax.text(0.3, y + 0.15, head, ha="left", va="center", fontsize=13, weight="bold", color=color)
+        ax.text(0.3, y - 0.3, sub, ha="left", va="center", fontsize=11, color=color)
+        _inline(ax, 3.4, y + 0.25, formula, **math)
+        ax.add_patch(FancyBboxPatch((3.25, y - 0.95), 9.4, 0.72, boxstyle="round,pad=0.02,rounding_size=0.05",
+                                    facecolor=C_LIGHT, linewidth=0))
+        _inline(ax, 3.4, y - 0.68, line, **code)
+    ax.text(6.5, 3.55, "↓  повторяем, начиная с $Q_0 = 0$", ha="center", va="center", fontsize=11.5, color=C_GREY)
+
+    shapes = [("policy", "(12, 4)", "π(a|s): строка — клетка, в строке вероятности действий, сумма 1", C_AGENT),
+              ("policy * Q", "(12, 4)", "поэлементно: каждое Q(s, a) умножено на свою вероятность", C_TEXT),
+              (".sum(axis=1)", "(12,)", "сумма по действиям — одно число V(s) на клетку", C_AGENT),
+              ("P @ V", "(12, 4)", "средняя ценность следующей клетки для каждой пары (s, a)", C_ENV)]
+    for k, (name, shape, text, color) in enumerate(shapes):
+        y = 0.95 - 0.3 * k
+        ax.text(0.3, y, name, ha="left", va="center", fontsize=11.5, color=color, family="monospace", weight="bold")
+        ax.text(2.55, y, shape, ha="left", va="center", fontsize=11.5, color=C_TEXT, family="monospace")
+        ax.text(3.9, y, text, ha="left", va="center", fontsize=11.5, color=C_GREY)
+    ax.text(12.5, 4.16, "в value iteration эта строка другая:\nV = Q.max(axis=1)", ha="right", va="center",
+            fontsize=11, color=C_ACCENT, weight="bold")
+    fig.savefig(OUT / "pe_update.png", dpi=DPI, bbox_inches="tight", pad_inches=0.2)
+    plt.close(fig)
+
+
+def recap_week2():
+    """Лекция 2 на одной картинке: модель → уравнение → итерации → ответ. Сегодня убираем первый блок."""
+    fig, ax = plt.subplots(figsize=(13.5, 4.9))
+    ax.set_xlim(0, 13.5); ax.set_ylim(0, 4.9); ax.axis("off")
+    ax.text(6.75, 4.6, "Лекция 2 на одной картинке", ha="center", fontsize=14.5, weight="bold", color=C_TEXT)
+    steps = [
+        (C_ENV, "Модель среды", "$p(s'|s,a)$  и  $r(s,a)$", "ветер 0.8 / 0.1 / 0.1,\n−0.04 за шаг, ±1 в конце"),
+        (C_TEXT, "Уравнение Беллмана", "$Q^* = \\sum_{s'} p\\,[\\,r + \\gamma\\, \\max_{a'}\\, Q^*\\,]$",
+         "неизвестное стоит\nпо обе стороны"),
+        (C_AGENT, "Простая итерация", "$Q_{k+1}$ = правая часть от $Q_k$", "value iteration: ценность\nрасходится от выхода волной"),
+        (C_PURPLE, "Ответ", "$\\pi^*(s) = \\arg\\max_a Q^*(s,a)$", "из старта +0.50\n(случайная стратегия −0.67)"),
+    ]
+    w, gap, y0, h = 2.95, 0.43, 2.15, 1.55
+    for i, (color, head, formula, caption) in enumerate(steps):
+        x = 0.25 + i * (w + gap)
+        ax.add_patch(FancyBboxPatch((x, y0), w, h, boxstyle="round,pad=0.01,rounding_size=0.06", linewidth=0, facecolor=color))
+        ax.text(x + w / 2, y0 + h * 0.70, head, ha="center", va="center", fontsize=12.5, color="white", weight="bold")
+        ax.text(x + w / 2, y0 + h * 0.32, formula, ha="center", va="center", fontsize=11.5, color="white")
+        ax.text(x + w / 2, y0 - 0.5, caption, ha="center", va="center", fontsize=10.5, color=C_GREY)
+        if i < 3:
+            _arrow(ax, (x + w + 0.05, y0 + h / 2), (x + w + gap - 0.05, y0 + h / 2), C_GREY, lw=2.2)
+    # сегодня первого блока нет
+    ax.add_patch(FancyBboxPatch((0.12, y0 - 0.13), w + 0.26, h + 0.26, boxstyle="round,pad=0.01,rounding_size=0.08",
+                                linewidth=2.6, edgecolor=C_ACCENT, facecolor="none", linestyle="--"))
+    ax.text(0.25 + w / 2, y0 + h + 0.32, "сегодня этого нет", ha="center", va="center", fontsize=12, color=C_ACCENT,
+            weight="bold")
+    ax.text(6.75, 0.55, "Сегодня: таблиц $p$ и $r$ нет — есть только env.step(a).  Остальные блоки останутся почти без изменений.",
+            ha="center", va="center", fontsize=12.5, color=C_ACCENT, weight="bold")
+    fig.savefig(OUT / "recap_week2.png", dpi=DPI, bbox_inches="tight", pad_inches=0.2)
+    plt.close(fig)
+
+
+def model_vs_sample():
+    """С моделью видны все исходы действия с вероятностями; без модели env.step показывает один исход."""
+    fig, ax = plt.subplots(figsize=(13, 5.4))
+    ax.set_xlim(0, 13); ax.set_ylim(0, 5.4); ax.axis("off")
+    panels = [(0.2, "Лекция 2: модель известна", C_ENV), (6.8, "Сегодня: модели нет", C_AGENT)]
+    for x0, head, color in panels:
+        ax.text(x0 + 3.0, 5.1, head, ha="center", va="center", fontsize=13.5, weight="bold", color=color)
+        root = (x0 + 1.0, 3.0)
+        ax.scatter(*root, s=2300, color=C_AGENT, zorder=3)
+        ax.text(*root, "$s, a$", ha="center", va="center", fontsize=14, color="white", weight="bold", zorder=4)
+        known = x0 < 5
+        for k, (y, p) in enumerate([(4.25, "0.8"), (3.0, "0.1"), (1.75, "0.1")]):
+            end = (x0 + 4.1, y)
+            sampled = known or k == 0
+            c = C_ENV if sampled else "#bbbbbb"
+            ax.add_patch(FancyArrowPatch((root[0] + 0.45, root[1] + (y - root[1]) * 0.15), (end[0] - 0.42, y),
+                                         arrowstyle="-|>", mutation_scale=20, lw=2.4 if sampled else 1.6, color=c,
+                                         linestyle="-" if sampled else (0, (4, 3))))
+            ax.scatter(*end, s=1500, color=c, zorder=3)
+            ax.text(*end, f"$s'_{k + 1}$", ha="center", va="center", fontsize=13, color="white", weight="bold", zorder=4)
+            label = p if known else ("выпало" if k == 0 else "?")
+            ax.text(x0 + 2.55, root[1] + (y - root[1]) * 0.62 + (0.2 if y >= root[1] else -0.3), label, ha="center",
+                    va="center", fontsize=12, color=c, weight="bold")
+        if known:
+            ax.text(x0 + 3.0, 0.95, "$\\sum_{s'} p(s'|s,a)\\,[\\,r + \\gamma\\, V(s')\\,]$", ha="center", va="center",
+                    fontsize=14, color=C_TEXT)
+            ax.text(x0 + 3.0, 0.45, "среднее по всем исходам с их вероятностями", ha="center", va="center",
+                    fontsize=11, color=C_GREY)
+        else:
+            ax.text(x0 + 3.0, 0.95, "env.step(a)  →  $(r,\\ s')$", ha="center", va="center", fontsize=14, color=C_TEXT)
+            ax.text(x0 + 3.0, 0.45, "один исход за раз; вероятностей никто не скажет", ha="center", va="center",
+                    fontsize=11, color=C_GREY)
+    ax.plot([6.5, 6.5], [0.3, 5.2], color="#dddddd", lw=1.5)
+    fig.savefig(OUT / "model_vs_sample.png", dpi=DPI, bbox_inches="tight", pad_inches=0.2)
+    plt.close(fig)
+
+
+def running_mean():
+    """Среднее на ходу: сдвигаем оценку к новому наблюдению на долю α."""
+    fig, ax = plt.subplots(figsize=(12, 5.4))
+    ax.set_xlim(0, 12); ax.set_ylim(-0.4, 5.0); ax.axis("off")
+    ax.add_patch(FancyBboxPatch((1.6, 4.0), 8.8, 0.8, boxstyle="round,pad=0.02,rounding_size=0.05",
+                                facecolor=C_LIGHT, linewidth=0))
+    ax.text(6.0, 4.4, "новая оценка  =  старая  +  $\\alpha$ · (наблюдение − старая)", ha="center", va="center",
+            fontsize=15, color=C_TEXT, weight="bold")
+
+    def X(minutes):                                    # минуты → координата на рисунке
+        return 1.0 + (minutes - 30) * 0.4
+    ax.plot([X(30), X(55)], [2.0, 2.0], color=C_TEXT, lw=1.5)
+    for m in range(30, 56, 5):
+        ax.plot([X(m), X(m)], [1.92, 2.08], color=C_TEXT, lw=1.2)
+        ax.text(X(m), 1.7, f"{m}", ha="center", va="center", fontsize=10.5, color=C_GREY)
+    ax.text(X(55) + 0.25, 1.7, "мин", ha="left", va="center", fontsize=10.5, color=C_GREY)
+    for minutes, color, label, dy in [(40, C_AGENT, "было: 40", 0.45), (50, C_REWARD, "сегодня ехали 50", 0.45),
+                                      (42, C_ENV, "стало: 42", -0.75)]:
+        ax.scatter([X(minutes)], [2.0], s=230, color=color, zorder=3)
+        ax.text(X(minutes), 2.0 + dy, label, ha="center", va="center", fontsize=12, color=color, weight="bold")
+    ax.add_patch(FancyArrowPatch((X(40), 3.05), (X(50), 3.05), arrowstyle="<|-|>", mutation_scale=16, lw=1.8, color=C_REWARD))
+    ax.text(X(45), 3.35, "ошибка: 50 − 40 = 10", ha="center", va="center", fontsize=11.5, color=C_REWARD)
+    _arrow(ax, (X(40), 2.0), (X(42) - 0.08, 2.0), C_ENV, lw=3.2)
+    ax.text(X(41), 0.85, "сдвиг: $\\alpha$ · 10 = 2   ($\\alpha$ = 0.2)", ha="center", va="center", fontsize=11.5, color=C_ENV)
+    ax.text(7.7, 1.05, "$\\alpha = 1/n$  →  ровно среднее всех дней", ha="left", va="center", fontsize=11.5, color=C_TEXT)
+    ax.text(7.7, 0.6, "$\\alpha$ = const  →  свежие дни весят больше", ha="left", va="center", fontsize=11.5, color=C_TEXT)
+    ax.text(6.0, -0.15, "Хранить все наблюдения не нужно: одно число и одна поправка после каждого нового",
+            ha="center", va="center", fontsize=12, color=C_ACCENT, weight="bold")
+    fig.savefig(OUT / "running_mean.png", dpi=DPI, bbox_inches="tight", pad_inches=0.2)
+    plt.close(fig)
+
+
+def mc_vs_td():
+    """Дорога на пару: Монте-Карло тянет прогнозы к факту в конце, TD — каждый прогноз к следующему."""
+    stops = ["вышел\nиз дома", "автобус\nушёл", "сел\nв метро", "пересадка,\nдавка", "вышел\nиз метро", "в аудитории"]
+    pred = [40, 48, 46, 52, 53]
+    actual = 55
+    fig, axes = plt.subplots(1, 2, figsize=(13.5, 4.9), sharey=True)
+    titles = ["Монте-Карло: доехали — тянем все прогнозы к факту", "TD: каждый прогноз тянем к следующему — сразу"]
+    for ax, title, kind in zip(axes, titles, ["mc", "td"]):
+        x = np.arange(len(pred))
+        ax.plot(x, pred, "-o", color=C_AGENT, lw=2, ms=8, zorder=3, label="прогноз в этот момент")
+        ax.plot([len(pred)], [actual], "*", color=C_ACCENT, ms=17, zorder=3, label="факт")
+        for i, p in enumerate(pred):
+            target = actual if kind == "mc" else (pred[i + 1] if i + 1 < len(pred) else actual)
+            if abs(target - p) > 0.3:
+                ax.annotate("", xy=(i + 0.12, target), xytext=(i + 0.12, p),
+                            arrowprops=dict(arrowstyle="-|>", color=C_REWARD, lw=2.2, mutation_scale=16))
+            if kind == "td" and i + 1 < len(pred):
+                ax.plot([i + 0.12, i + 1], [target, target], color=C_REWARD, lw=1, ls=":")
+        if kind == "mc":
+            ax.axhline(actual, color=C_ACCENT, lw=1, ls="--")
+            ax.text(0.0, actual + 0.6, "факт: 55 мин", color=C_ACCENT, fontsize=10.5)
+        ax.set_xticks(range(len(stops))); ax.set_xticklabels(stops, fontsize=9.5)
+        ax.set_title(title, fontsize=11.5, color=C_TEXT, weight="bold")
+        ax.set_ylim(36, 59)
+        ax.spines[["top", "right"]].set_visible(False)
+        ax.grid(axis="y", alpha=0.3)
+    axes[0].set_ylabel("прогноз: сколько займёт\nвся дорога, мин", fontsize=10.5)
+    axes[0].legend(loc="lower right", fontsize=9.5, frameon=False)
+    fig.text(0.5, -0.04, "оранжевые стрелки — куда сдвинется каждый прогноз после обновления",
+             ha="center", fontsize=11, color=C_REWARD)
+    fig.tight_layout()
+    fig.savefig(OUT / "mc_vs_td.png", dpi=DPI, bbox_inches="tight", pad_inches=0.2)
+    plt.close(fig)
+
+
+def backup_diagrams():
+    """Что использует одно обновление: DP — все исходы на шаг, MC — один путь до конца, TD — один шаг одного пути."""
+    fig, axes = plt.subplots(1, 3, figsize=(13.5, 5.6))
+    panels = [("Динамическое\nпрограммирование", C_ENV, "dp", "все исходы, один шаг\nнужна модель $p$"),
+              ("Монте-Карло", C_AGENT, "mc", "один путь до конца эпизода\nждём конца"),
+              ("TD", C_REWARD, "td", "один исход, один шаг\nобновляем сразу")]
+    for ax, (head, color, kind, caption) in zip(axes, panels):
+        ax.set_xlim(-2.2, 2.2); ax.set_ylim(-0.9, 5.2); ax.axis("off")
+        ax.text(0, 5.0, head, ha="center", va="center", fontsize=13, weight="bold", color=color)
+        levels = [[(0.0, 4.2)]]                                      # состояния и действия по уровням
+        spreads = [1.0, 0.5, 0.25, 0.12]
+        for spread in spreads:
+            y = levels[-1][0][1] - 0.7
+            levels.append([(x + d, y) for x, _ in levels[-1] for d in (-spread, spread)])
+        on = {"dp": {(1, 0), (1, 1), (2, 0), (2, 1), (2, 2), (2, 3)},
+              "mc": {(1, 0), (2, 0), (3, 0), (4, 0)},
+              "td": {(1, 0), (2, 0)}}[kind]
+        for lvl in range(1, len(levels)):
+            for j, (x, y) in enumerate(levels[lvl]):
+                px, py = levels[lvl - 1][j // 2]
+                hot = (lvl, j) in on
+                ax.plot([px, x], [py, y], color=color if hot else "#cccccc", lw=3.2 if hot else 1.0, zorder=1)
+        for lvl, nodes in enumerate(levels):
+            for j, (x, y) in enumerate(nodes):
+                hot = lvl == 0 or (lvl, j) in on
+                if lvl % 2 == 0:                                     # состояние — кружок
+                    ax.scatter([x], [y], s=260 if lvl < 4 else 90, facecolor=color if hot else "white",
+                               edgecolor=color if hot else "#bbbbbb", lw=1.5, zorder=3)
+                else:                                                # действие — точка
+                    ax.scatter([x], [y], s=55, color=C_TEXT if hot else "#bbbbbb", zorder=3)
+        if kind == "mc":
+            x_end = levels[4][0][0]
+            ax.plot([x_end, x_end], [levels[4][0][1], 0.35], color=color, lw=3.2, ls=(0, (1, 2)), zorder=1)
+            ax.add_patch(Rectangle((x_end - 0.17, 0.0), 0.34, 0.34, facecolor=color, zorder=3))
+            ax.text(x_end + 0.3, 0.17, "конец\nэпизода", ha="left", va="center", fontsize=10, color=color)
+        ax.text(0, -0.55, caption, ha="center", va="center", fontsize=11.5, color=C_TEXT)
+    fig.text(0.5, 0.0, "○ — состояние,  • — действие.  Выделено то, что нужно для одного обновления.",
+             ha="center", fontsize=11, color=C_GREY)
+    fig.savefig(OUT / "backup_diagrams.png", dpi=DPI, bbox_inches="tight", pad_inches=0.2)
+    plt.close(fig)
+
+
+def vi_vs_q_learning():
+    """Value iteration и Q-learning: та же цель из уравнения Беллмана, но среднее по исходам заменено одной попыткой."""
+    fig, ax = plt.subplots(figsize=(13.5, 5.6))
+    ax.set_xlim(0, 13.5); ax.set_ylim(0, 5.6); ax.axis("off")
+    target = "$r + \\gamma\\, \\max_{a'}\\, Q(s', a')$"
+    rows = [(4.05, C_ENV, "лекция 2: value iteration", "$Q(s,a) \\;\\leftarrow\\; \\sum_{s'} p(s'|s,a)\\,[$", "$]$",
+             "нужна модель: среднее по всем $s'$ с весами $p$"),
+            (1.85, C_AGENT, "сегодня: Q-learning", "$Q(s,a) \\;\\leftarrow\\; Q(s,a) + \\alpha\\,[$",
+             "$-\\; Q(s,a)\\,]$", "модель не нужна: $(s, a, r, s')$ — один переход из env.step,\n"
+                                     "сдвигаемся к цели на долю $\\alpha$ (среднее на ходу)")]
+    for y, color, tag, prefix, suffix, note in rows:
+        ax.text(0.3, y + 0.75, tag, ha="left", va="center", fontsize=12.5, color=color, weight="bold")
+        ax.text(6.05, y, prefix, ha="right", va="center", fontsize=17, color=C_TEXT)
+        ax.add_patch(FancyBboxPatch((6.2, y - 0.38), 3.55, 0.76, boxstyle="round,pad=0.02,rounding_size=0.06",
+                                    facecolor="#fbe3d3", edgecolor=C_REWARD, linewidth=2.0))
+        ax.text(7.97, y, target, ha="center", va="center", fontsize=17, color=C_TEXT)
+        ax.text(9.9, y, suffix, ha="left", va="center", fontsize=17, color=C_TEXT)
+        ax.text(0.3, y - 0.75, note, ha="left", va="center", fontsize=11, color=color)
+    ax.text(7.97, 5.2, "цель (target) — одна и та же", ha="center", va="center", fontsize=12, color=C_REWARD,
+            weight="bold")
+    _arrow(ax, (7.97, 4.98), (7.97, 4.5), C_REWARD, lw=1.6)
+    ax.text(6.75, 0.25, "Q-learning — это value iteration, где среднее по исходам заменено средним по попыткам",
+            ha="center", va="center", fontsize=12.5, color=C_ACCENT, weight="bold")
+    fig.savefig(OUT / "vi_vs_q_learning.png", dpi=DPI, bbox_inches="tight", pad_inches=0.2)
+    plt.close(fig)
+
+
+def eps_greedy():
+    """ε-жадная стратегия: монетка решает, использовать лучшее известное действие или попробовать случайное."""
+    fig, ax = plt.subplots(figsize=(7.6, 3.8))
+    ax.set_xlim(0, 7.6); ax.set_ylim(0.45, 4.25); ax.axis("off")
+    ax.scatter([0.9], [2.5], s=1900, color=C_AGENT, zorder=3)
+    ax.text(0.9, 2.5, "$s$", ha="center", va="center", fontsize=16, color="white", weight="bold", zorder=4)
+    _arrow(ax, (1.35, 2.5), (2.2, 2.5), C_GREY, lw=2)
+    ax.scatter([2.65], [2.5], s=2300, color=C_LIGHT, edgecolor=C_GREY, lw=1.5, zorder=3)
+    ax.text(2.65, 2.5, "монетка", ha="center", va="center", fontsize=9.5, color=C_TEXT, zorder=4)
+    _arrow(ax, (3.05, 2.75), (4.0, 3.55), C_ENV, lw=2.4)
+    _arrow(ax, (3.05, 2.25), (4.0, 1.45), C_REWARD, lw=2.4)
+    ax.text(3.35, 3.4, "$1-\\varepsilon$", ha="center", va="center", fontsize=13, color=C_ENV, weight="bold")
+    ax.text(3.35, 1.6, "$\\varepsilon$", ha="center", va="center", fontsize=14, color=C_REWARD, weight="bold")
+    _box(ax, (4.05, 3.15), 3.1, 0.85, "лучшее по $Q$:  $\\arg\\max_a Q(s,a)$", C_ENV, fontsize=10.5, radius=0.02)
+    _box(ax, (4.05, 1.05), 3.1, 0.85, "случайное действие", C_REWARD, fontsize=12, radius=0.02)
+    ax.text(5.6, 2.85, "использование", ha="center", va="center", fontsize=10.5, color=C_ENV)
+    ax.text(5.6, 0.75, "исследование", ha="center", va="center", fontsize=10.5, color=C_REWARD)
+
+    fig.savefig(OUT / "eps_greedy.png", dpi=DPI, bbox_inches="tight", pad_inches=0.2)
+    plt.close(fig)
+
+
+def sarsa_vs_q():
+    """SARSA и Q-learning различаются одним: что стоит в цели вместо следующего действия."""
+    fig, ax = plt.subplots(figsize=(13.5, 6.4))
+    ax.set_xlim(0, 13.5); ax.set_ylim(0, 6.4); ax.axis("off")
+    # пятёрка s, a, r, s', a'
+    letters = [("$s$", C_AGENT), ("$a$", C_TEXT), ("$r$", C_REWARD), ("$s'$", C_AGENT), ("$a'$", C_TEXT)]
+    for i, (text, color) in enumerate(letters):
+        _box(ax, (3.85 + i * 1.2, 5.35), 0.9, 0.7, text, color, fontsize=16, radius=0.04)
+        if i < 4:
+            _arrow(ax, (4.78 + i * 1.2, 5.7), (5.02 + i * 1.2, 5.7), C_GREY, lw=1.5)
+    ax.text(6.75, 5.05, "S – A – R – S – A: имя алгоритма — это пятёрка, по которой он учится",
+            ha="center", va="center", fontsize=11, color=C_GREY)
+
+    q_next = [0.40, 0.20, -1.00, 0.10]
+    cols = [(0.3, C_AGENT, "Q-learning", "$r + \\gamma\\, \\max_{a'}\\, Q(s', a')$", 0,
+             "как будто дальше играем идеально", "учит $Q^*$ — off-policy"),
+            (7.0, C_REWARD, "SARSA", "$r + \\gamma\\, Q(s', a')$,  $a'$ — сделанное", 2,
+             "учитывает, что сами иногда\nделаем случайные шаги", "учит $Q^\\pi$ своей $\\varepsilon$-жадной\nстратегии — on-policy")]
+    for x0, color, name, target, pick, idea, kind in cols:
+        ax.text(x0 + 3.1, 4.4, name, ha="center", va="center", fontsize=14, weight="bold", color=color)
+        ax.add_patch(FancyBboxPatch((x0 + 0.2, 3.55), 5.8, 0.6, boxstyle="round,pad=0.02,rounding_size=0.05",
+                                    facecolor=C_LIGHT, linewidth=0))
+        ax.text(x0 + 3.1, 3.85, "цель:  " + target, ha="center", va="center", fontsize=13, color=C_TEXT)
+        root = (x0 + 1.0, 2.0)
+        ax.scatter(*root, s=1300, color=C_AGENT, zorder=3)
+        ax.text(*root, "$s'$", ha="center", va="center", fontsize=13, color="white", weight="bold", zorder=4)
+        for i, (arrow, qv) in enumerate(zip("↑→↓←", q_next)):
+            y = 2.95 - 0.62 * i
+            hot = i == pick
+            ax.plot([root[0] + 0.35, x0 + 2.1], [root[1], y], color=color if hot else "#cccccc", lw=3 if hot else 1.2)
+            ax.text(x0 + 2.3, y, f"{arrow}  $Q$ = {qv:+.2f}".replace("-", "−"), ha="left", va="center", fontsize=11.5,
+                    color=C_TEXT if hot else C_GREY, weight="bold" if hot else "normal")
+        ax.text(x0 + 4.35, 2.95 - 0.62 * pick, "← max" if pick == 0 else "← выпало (ε),\n    обрыв",
+                ha="left", va="center", fontsize=10.5, color=color, weight="bold")
+        ax.text(x0 + 3.1, 0.55, idea, ha="center", va="center", fontsize=11, color=C_TEXT)
+        ax.text(x0 + 3.1, -0.15, kind, ha="center", va="center", fontsize=11, color=color, weight="bold")
+    ax.plot([6.75, 6.75], [-0.4, 4.6], color="#dddddd", lw=1.5)
+    fig.savefig(OUT / "sarsa_vs_q.png", dpi=DPI, bbox_inches="tight", pad_inches=0.2)
+    plt.close(fig)
+
+
+def on_off_policy():
+    """Две роли стратегии: кто собирает данные и чью ценность учим. Совпадают — on-policy, разные — off-policy."""
+    fig, ax = plt.subplots(figsize=(14.5, 5.6))
+    ax.set_xlim(0, 14.5); ax.set_ylim(0, 5.6); ax.axis("off")
+    ax.text(7.25, 5.3, "У стратегии в обучении две роли", ha="center", va="center", fontsize=14.5, weight="bold",
+            color=C_TEXT)
+    heads = [(3.4, "кто ходит", "стратегия поведения"),
+             (7.1, "что стоит в цели", "какое действие подставляем в $s'$"),
+             (10.8, "чью ценность учим", "целевая стратегия")]
+    for x, head, sub in heads:
+        ax.text(x, 4.6, head, ha="center", va="center", fontsize=12, color=C_TEXT, weight="bold")
+        ax.text(x, 4.25, sub, ha="center", va="center", fontsize=10.5, color=C_GREY)
+    rows = [(3.15, "SARSA", "$r + \\gamma\\, Q(s', a')$", "$a'$ выбрала та же ε-жадная", "ε-жадная", C_AGENT,
+             "одна и та же", "on-policy"),
+            (1.75, "Q-learning", "$r + \\gamma\\, \\max_{a'}\\, Q(s', a')$", "max — это жадный выбор", "жадная", C_ACCENT,
+             "разные", "off-policy")]
+    for y, name, formula, note, target, color, verdict, term in rows:
+        ax.text(0.2, y, name, ha="left", va="center", fontsize=13.5, weight="bold", color=C_TEXT)
+        _box(ax, (2.1, y - 0.42), 2.6, 0.84, "ε-жадная", C_AGENT, fontsize=13, radius=0.05)
+        _arrow(ax, (4.8, y), (5.25, y), C_GREY, lw=2)
+        ax.add_patch(FancyBboxPatch((5.35, y - 0.52), 3.5, 1.04, boxstyle="round,pad=0.02,rounding_size=0.05",
+                                    facecolor=C_LIGHT, linewidth=0))
+        ax.text(7.1, y + 0.16, formula, ha="center", va="center", fontsize=14, color=C_TEXT)
+        ax.text(7.1, y - 0.28, note, ha="center", va="center", fontsize=10.5, color=color, weight="bold")
+        _arrow(ax, (8.95, y), (9.4, y), C_GREY, lw=2)
+        _box(ax, (9.5, y - 0.42), 2.6, 0.84, target, color, fontsize=13, radius=0.05)
+        ax.text(12.4, y + 0.2, verdict, ha="left", va="center", fontsize=11.5, color=C_TEXT)
+        ax.text(12.4, y - 0.2, term, ha="left", va="center", fontsize=14, weight="bold", color=color)
+    ax.text(7.25, 0.62, "on-policy: учим ту стратегию, которой ходим — нужны её собственные свежие данные",
+            ha="center", va="center", fontsize=11.5, color=C_AGENT, weight="bold")
+    ax.text(7.25, 0.2, "off-policy: учим одну, ходим другой — данные может собирать кто угодно: "
+            "другой агент, старая версия себя, буфер опыта (DQN, неделя 6)",
+            ha="center", va="center", fontsize=11.5, color=C_ACCENT, weight="bold")
+    fig.savefig(OUT / "on_off_policy.png", dpi=DPI, bbox_inches="tight", pad_inches=0.2)
+    plt.close(fig)
+
+
+def value_based_map():
+    """Итог лекции 3 одной таблицей: какой метод что знает, чего ждёт и к какой цели двигается."""
+    rows = [("Value iteration", "DP", "да", "нет", "$\\sum_{s'} p\\,[\\,r + \\gamma\\, \\max_{a'}\\, Q(s',a')\\,]$", "$Q^*$", C_ENV),
+            ("Policy iteration", "DP", "да", "нет", "оценить $\\pi$, взять жадную", "$Q^*$, $\\pi^*$", C_ENV),
+            ("Монте-Карло", "оценка", "нет", "да", "$G$ — return до конца эпизода", "$V^\\pi$, $Q^\\pi$", C_AGENT),
+            ("TD(0)", "оценка", "нет", "нет", "$r + \\gamma\\, V(s')$", "$V^\\pi$", C_AGENT),
+            ("SARSA", "управление", "нет", "нет", "$r + \\gamma\\, Q(s', a')$", "$Q^\\pi$ ($\\varepsilon$-жадной)", C_REWARD),
+            ("Q-learning", "управление", "нет", "нет", "$r + \\gamma\\, \\max_{a'}\\, Q(s', a')$", "$Q^*$", C_REWARD),
+            ("Expected SARSA", "управление", "нет", "нет", "$r + \\gamma \\sum_{a'} \\pi(a'|s')\\, Q(s', a')$",
+             "$Q^\\pi$", C_REWARD)]
+    fig, ax = plt.subplots(figsize=(14, 6.0))
+    ax.set_xlim(0, 14); ax.set_ylim(0, 6.0); ax.axis("off")
+    cols = [0.2, 2.75, 4.35, 5.65, 7.05, 11.9]
+    heads = ["метод", "задача", "нужна\nмодель", "ждём конца\nэпизода", "цель (target)", "что выучим"]
+    for x, h in zip(cols, heads):
+        ax.text(x, 5.35, h, ha="left", va="center", fontsize=11, color=C_GREY, weight="bold")
+    for i, (name, task, model, wait, target, result, color) in enumerate(rows):
+        y = 4.65 - 0.6 * i
+        ax.add_patch(Rectangle((0.05, y - 0.27), 13.9, 0.54, facecolor=color, alpha=0.08, edgecolor="none"))
+        ax.add_patch(Rectangle((0.05, y - 0.27), 0.08, 0.54, facecolor=color, edgecolor="none"))
+        ax.text(cols[0] + 0.05, y, name, ha="left", va="center", fontsize=12, color=color, weight="bold")
+        ax.text(cols[1], y, task, ha="left", va="center", fontsize=11, color=C_TEXT)
+        for x, val in [(cols[2], model), (cols[3], wait)]:
+            ax.text(x + 0.35, y, val, ha="center", va="center", fontsize=11.5,
+                    color=C_ACCENT if val == "да" else C_ENV, weight="bold")
+        ax.text(cols[4], y, target, ha="left", va="center", fontsize=12, color=C_TEXT)
+        ax.text(cols[5], y, result, ha="left", va="center", fontsize=12, color=C_TEXT)
+    ax.text(7.0, 0.22, "Всё без модели обновляется одинаково:   новая оценка = старая + $\\alpha$ · (цель − старая)",
+            ha="center", va="center", fontsize=12.5, color=C_ACCENT, weight="bold")
+    fig.savefig(OUT / "value_based_map.png", dpi=DPI, bbox_inches="tight", pad_inches=0.2)
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     for fn in (agent_env_loop, ml_paradigms, rl_timeline, rl_origins, rl_taxonomy, mdp_gridworld, course_map, markov_chain, cem_loop,
                env_anatomy, wrapper_onion, reward_types, observation_vs_state, action_spaces, policy_types,
-               return_recursion, gridworld_rules, from_episodes_to_steps, q_choice, v_vs_q, v_q_link, pi_star_collapse, bellman_substitution, two_equations, vi_update, policy_iteration_loop, lottery_mdp, bellman_family):
+               return_recursion, gridworld_rules, from_episodes_to_steps, q_choice, v_vs_q, v_q_link, pi_star_collapse, bellman_substitution, two_equations, vi_update, policy_iteration_loop, lottery_mdp, bellman_family,
+               value_meaning, values_four_cases, where_we_average, q_four_cases, q_where_we_average, pe_update,
+               recap_week2, model_vs_sample, running_mean, mc_vs_td, backup_diagrams, vi_vs_q_learning, eps_greedy,
+               sarsa_vs_q, on_off_policy, value_based_map):
         fn()
         print("saved", fn.__name__)
