@@ -12,10 +12,25 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
-LEFTOVERS = ("raise NotImplementedError", "# TODO: ваш код здесь", "TODO: ваш код")
+LEFTOVERS = ("raise NotImplementedError",)
+
+# заготовки, которые студент часто забывает заменить
+RE_TODO = re.compile(r"^\s*#\s*TODO", re.M)                      # любой комментарий-заготовка
+RE_ELLIPSIS = re.compile(r"^\s*[\w\[\]., ]+=\s*\.\.\.\s*(?:#.*)?$", re.M)   # x = ...
+RE_ELLIPSIS_KW = re.compile(r"\w+\s*=\s*\.\.\.\s*[,)]")                      # f(n=...)
+# незаполненный письменный ответ — только строка-заглушка целиком, а не слово TODO в прозе
+RE_ANSWER = re.compile(r"^_Ваш[^_]*:_\s*TODO\s*$", re.M)
+
+
+def has_leftover(text: str) -> bool:
+    return (any(m in text for m in LEFTOVERS)
+            or RE_TODO.search(text) is not None
+            or RE_ELLIPSIS.search(text) is not None
+            or RE_ELLIPSIS_KW.search(text) is not None)
 
 
 def source(cell: dict) -> str:
@@ -46,16 +61,19 @@ def check(path: Path) -> tuple[list[str], list[str]]:
               if any(o.get("output_type") == "error" for o in c.get("outputs", []))]
     if failed:
         names = ", ".join(str(i + 1) for i in failed[:6])
-        problems.append(f"{path}: ячейки с ошибкой: {names}{' и другие' if len(failed) > 6 else ''}")
+        problems.append(f"{path}: ячейки с кодом, упавшие с ошибкой: {names}{' и другие' if len(failed) > 6 else ''}")
 
-    left = [i for i, c in enumerate(cells) if any(m in source(c) for m in LEFTOVERS)]
+    left = [i for i, c in enumerate(cells) if has_leftover(source(c))]
     if left:
-        problems.append(f"{path}: остались незаполненные заготовки в {len(left)} ячейках")
+        names = ", ".join(str(i + 1) for i in left[:6])
+        problems.append(f"{path}: остались незаполненные заготовки — ячейки с кодом "
+                        f"{names}{' и другие' if len(left) > 6 else ''}")
 
     todo_md = sum(1 for c in nb.get("cells", [])
-                  if c.get("cell_type") == "markdown" and "TODO" in source(c))
+                  if c.get("cell_type") == "markdown" and RE_ANSWER.search(source(c)))
     if todo_md:
-        notes.append(f"{path}: текстовых ответов с пометкой TODO: {todo_md} — их проверяет преподаватель вручную")
+        notes.append(f"{path}: не заполнено письменных ответов: {todo_md} "
+                     f"(в ячейке осталось «_Ваш ответ:_ TODO»). Баллы за них ставит преподаватель")
 
     return problems, notes
 
