@@ -9,3 +9,6 @@ __pycache__/
 roster.csv
 collected/
 journal.csv
+
+# скилл курса копируется из приватного репо хуком SessionStart
+.claude/skills/course-materials/
