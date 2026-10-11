@@ -1,0 +1,61 @@
+name: Создать репозитории студентов
+
+# Запуск вручную: Actions → «Создать репозитории студентов» → Run workflow.
+# Создаёт недостающие репозитории <org>/rl-hw-blockN-<логин> из шаблона <org>/rl-hw-blockN
+# и приглашает студентов. Повторный запуск безопасен: уже созданное пропускается.
+
+on:
+  workflow_dispatch:
+    inputs:
+      block:
+        description: "Номер блока (шаблон rl-hw-blockN)"
+        default: "1"
+        required: true
+      dry_run:
+        description: "Только показать, что будет сделано"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  create:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Инструменты курса
+        uses: actions/checkout@v4
+        with:
+          repository: IlyaChichkanov/Reinforcement-learning
+          path: _course
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Проверить логины
+        env:
+          GITHUB_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+        run: |
+          # не роняем запуск: ненайденные логины create пропустит и перечислит
+          python _course/tools/student_repos.py check --students students.csv > check.txt 2>&1 || true
+          cat check.txt
+          { echo "## Проверка логинов"; echo '```'; cat check.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Создать репозитории и пригласить
+        env:
+          GITHUB_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+          BLOCK: ${{ inputs.block }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          ORG: ${{ github.repository_owner }}
+        run: |
+          case "$BLOCK" in (*[!0-9]*|'') echo "номер блока — число"; exit 1;; esac
+          extra=""; [ "$DRY_RUN" = "true" ] && extra="--dry-run"
+          rc=0
+          python _course/tools/student_repos.py create --students students.csv \
+            --org "$ORG" --prefix "rl-hw-block$BLOCK" $extra > report.txt 2>&1 || rc=$?
+          cat report.txt
+          { echo "## Блок $BLOCK"; echo '```'; cat report.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit $rc

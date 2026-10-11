@@ -1,0 +1,39 @@
+name: Кто принял приглашение и сдавал
+
+on:
+  workflow_dispatch:
+    inputs:
+      block:
+        description: "Номер блока"
+        default: "1"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  status:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Инструменты курса
+        uses: actions/checkout@v4
+        with:
+          repository: IlyaChichkanov/Reinforcement-learning
+          path: _course
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Статус
+        env:
+          GITHUB_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+          BLOCK: ${{ inputs.block }}
+          ORG: ${{ github.repository_owner }}
+        run: |
+          case "$BLOCK" in (*[!0-9]*|'') echo "номер блока — число"; exit 1;; esac
+          rc=0
+          python _course/tools/student_repos.py status --students students.csv \
+            --org "$ORG" --prefix "rl-hw-block$BLOCK" > report.txt 2>&1 || rc=$?
+          cat report.txt
+          { echo "## Блок $BLOCK"; echo '```'; cat report.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit $rc

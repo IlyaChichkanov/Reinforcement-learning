@@ -28,23 +28,22 @@ jobs:
 
       - name: Код результата квиза
         id: quiz
+        # код выхода сохраняем явно: в оболочке по умолчанию «… | tee» его теряет
         run: |
-          {
-            echo "## Код результата квиза"
-            echo '```'
-            python _course/tools/check_quiz_code.py --required quiz/*.txt 2>&1 | tee quiz_report.txt
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+          rc=0
+          python _course/tools/check_quiz_code.py --required quiz/*.txt > quiz_report.txt 2>&1 || rc=$?
+          cat quiz_report.txt
+          { echo "## Код результата квиза"; echo '```'; cat quiz_report.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit $rc
 
       - name: Ноутбук с домашним заданием
         if: always()
         run: |
-          {
-            echo "## Ноутбук"
-            echo '```'
-            python _course/tools/check_homework.py homework.ipynb 2>&1 | tee nb_report.txt
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+          rc=0
+          python _course/tools/check_homework.py homework.ipynb > nb_report.txt 2>&1 || rc=$?
+          cat nb_report.txt
+          { echo "## Ноутбук"; echo '```'; cat nb_report.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit $rc
 
       - name: Написать отчёт в pull request
         if: always() && github.event_name == 'pull_request'
