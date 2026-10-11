@@ -32,7 +32,7 @@ jobs:
           {
             echo "## Код результата квиза"
             echo '```'
-            python _course/tools/check_quiz_code.py quiz/*.txt 2>&1 | tee quiz_report.txt
+            python _course/tools/check_quiz_code.py --required quiz/*.txt 2>&1 | tee quiz_report.txt
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
