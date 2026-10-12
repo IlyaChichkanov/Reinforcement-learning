@@ -40,6 +40,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.ADMIN_TOKEN }}
           BLOCK: ${{ inputs.block }}
           DRY_RUN: ${{ inputs.dry_run }}
+          GROUP: ${{ vars.QUIZ_GROUP || 'RL-2026' }}
           ORG: ${{ github.repository_owner }}
         run: |
           case "$BLOCK" in (*[!0-9]*|'') echo "номер блока — число"; exit 1;; esac
@@ -47,7 +48,7 @@ jobs:
           if [ -n "$extra" ]; then echo "режим: ПРОБНЫЙ (dry-run) — ничего не выдаётся" > report.txt; else echo "режим: настоящий" > report.txt; fi
           rc=0
           python _course/tools/student_repos.py issue --students students.csv --org "$ORG" \
-            --block "$BLOCK" --source "_course/homeworks/hw$BLOCK" $extra >> report.txt 2>&1 || rc=$?
+            --block "$BLOCK" --source "_course/homeworks/hw$BLOCK" --group "$GROUP" $extra >> report.txt 2>&1 || rc=$?
           cat report.txt
           { echo "## Блок $BLOCK"; echo '```'; cat report.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           exit $rc

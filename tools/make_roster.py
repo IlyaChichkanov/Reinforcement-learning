@@ -7,6 +7,11 @@
     uv run python tools/make_roster.py students.csv
     uv run python tools/make_roster.py students.csv --out roster.csv
 
+Вместо отдельных столбцов можно дать таблицу логинов (столбец «ФИО», как в
+course-admin/students.csv) и одну группу на всех:
+
+    uv run python tools/make_roster.py students.csv --from-fio --group RL-2026
+
 Коды детерминированы: тот же список даёт те же коды, поэтому файл можно
 пересоздавать, не ломая уже сданные работы.
 """
@@ -60,13 +65,24 @@ def read_students(path: Path) -> list[dict[str, str]]:
     return [{c: (row[fields[c]] or "").strip() for c in required} for row in rows]
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Личные коды студентов для квизов")
-    parser.add_argument("students", type=Path, help="CSV со столбцами фамилия,имя,группа")
-    parser.add_argument("--out", type=Path, default=Path("roster.csv"), help="куда писать (по умолчанию roster.csv)")
-    args = parser.parse_args()
+def read_fio(path: Path, group: str) -> list[dict[str, str]]:
+    """Студенты из таблицы со столбцом «ФИО» (над заголовком могут быть строки-пояснения)."""
+    with path.open(encoding="utf-8-sig", newline="") as f:
+        rows = list(csv.reader(f))
+    at = next((i for i, r in enumerate(rows) if any((c or "").strip().lower() == "фио" for c in r)), None)
+    if at is None:
+        sys.exit(f"{path}: нет столбца «ФИО»")
+    i_fio = [(c or "").strip().lower() for c in rows[at]].index("фио")
+    students = []
+    for r in rows[at + 1:]:
+        parts = (r[i_fio] if len(r) > i_fio else "").split()
+        if len(parts) >= 2:
+            students.append({"фамилия": parts[0], "имя": parts[1], "группа": group})
+    return students
 
-    students = read_students(args.students)
+
+def build_roster(students: list[dict[str, str]]) -> list[dict[str, str]]:
+    """Личный код каждому; при совпадении кодов у разных людей — следующий вариант хеша."""
     seen: dict[str, dict[str, str]] = {}
     roster = []
     for s in students:
@@ -77,6 +93,19 @@ def main() -> None:
             code = student_code(s["фамилия"], s["имя"], s["группа"], bump)
         seen[code] = s
         roster.append({"код": code, **s})
+    return roster
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Личные коды студентов для квизов")
+    parser.add_argument("students", type=Path, help="CSV со столбцами фамилия,имя,группа (или ФИО с --from-fio)")
+    parser.add_argument("--from-fio", action="store_true", help="брать фамилию и имя из столбца «ФИО»")
+    parser.add_argument("--group", default="", help="группа для всех (с --from-fio)")
+    parser.add_argument("--out", type=Path, default=Path("roster.csv"), help="куда писать (по умолчанию roster.csv)")
+    args = parser.parse_args()
+
+    students = read_fio(args.students, args.group) if args.from_fio else read_students(args.students)
+    roster = build_roster(students)
 
     with args.out.open("w", encoding="utf-8", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=["код", "фамилия", "имя", "группа"])

@@ -23,4 +23,5 @@
 ## Настройки
 
 * Секрет **`ADMIN_TOKEN`** (Settings → Secrets and variables → Actions → Secrets): токен преподавателя, как его получить — в [`SETUP.md`](https://github.com/IlyaChichkanov/Reinforcement-learning/blob/main/classroom/SETUP.md).
+* Переменная **`QUIZ_GROUP`** (там же, Variables): группа для личных кодов квизов, по умолчанию `RL-2026`. «Создать» и «Выдать блок» кладут каждому студенту `МОЙ_КОД_ДЛЯ_КВИЗОВ.txt`; полный список кодов — `roster.csv` (`make_roster.py --from-fio`).
 * Переменная **`CURRENT_BLOCK`** (там же, вкладка Variables): номер блока, который собирается каждый час. Если её нет — 1.

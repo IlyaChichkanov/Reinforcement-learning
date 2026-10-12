@@ -4,7 +4,7 @@
 
 | Блок | Лекции | Задание | Квизы | Дедлайн |
 |---|---|---|---|---|
-| 1 | 1–2: Cross-Entropy, оценка политики, своя среда, уравнения Беллмана | [`hw1/homework.ipynb`](hw1/homework.ipynb) | `hw1/quiz/week01.txt`, `hw1/quiz/week02.txt` | будет объявлен |
+| 1 | 1–2: Cross-Entropy, оценка политики, своя среда, уравнения Беллмана | [`hw1/homework.ipynb`](hw1/homework.ipynb) | `hw1/quiz/week01.txt`, `hw1/quiz/week02.txt` | 17.10, 23:59 (МСК) |
 
 ## Как устроено задание
 
