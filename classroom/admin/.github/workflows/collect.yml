@@ -1,0 +1,69 @@
+name: Собрать работы
+
+# Каждый час и по кнопке: копирует homework.ipynb и quiz/*.txt из всех репозиториев
+# студентов (папка hwN/ текущего блока) в blockN/<логин>/ этого репозитория и коммитит изменения.
+# Текущий блок — переменная репозитория CURRENT_BLOCK (Settings → Secrets and variables →
+# Actions → Variables), по умолчанию 1. Для сдачи на момент дедлайна запустите вручную
+# с полем «before», например 2026-10-28T23:59:59+03:00 — результат ляжет в blockN-deadline/.
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+    inputs:
+      block:
+        description: "Номер блока (пусто — CURRENT_BLOCK)"
+        required: false
+      before:
+        description: "Взять версию не позже этого момента (ISO 8601), пусто — последнюю"
+        required: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: collect
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Инструменты курса
+        uses: actions/checkout@v4
+        with:
+          repository: IlyaChichkanov/Reinforcement-learning
+          path: _course
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Забрать работы
+        env:
+          GITHUB_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+          BLOCK: ${{ inputs.block || vars.CURRENT_BLOCK || '1' }}
+          BEFORE: ${{ inputs.before }}
+          ORG: ${{ github.repository_owner }}
+        run: |
+          case "$BLOCK" in (*[!0-9]*|'') echo "номер блока — число"; exit 1;; esac
+          into="block$BLOCK"; extra=()
+          if [ -n "$BEFORE" ]; then into="block$BLOCK-deadline"; extra=(--before "$BEFORE"); fi
+          echo "INTO=$into" >> "$GITHUB_ENV"
+          rc=0
+          python _course/tools/student_repos.py collect --students students.csv \
+            --org "$ORG" --block "$BLOCK" --into "$into" "${extra[@]}" > report.txt 2>&1 || rc=$?
+          cat report.txt
+          { echo "## Блок $BLOCK → $into"; echo '```'; cat report.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit $rc
+
+      - name: Сохранить
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- "$INTO"
+          if git diff --cached --quiet; then echo "изменений нет"; exit 0; fi
+          git commit -q -m "Сбор работ: $INTO"
+          git push

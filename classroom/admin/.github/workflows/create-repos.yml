@@ -1,0 +1,56 @@
+name: Создать репозитории студентов
+
+# Запуск вручную: Actions → «Создать репозитории студентов» → Run workflow.
+# Для каждого логина из students.csv создаёт закрытый <org>/rl-<логин> из шаблона
+# <org>/rl-template и приглашает студента. Повторный запуск безопасен: уже созданное
+# пропускается, новые логины добавляются. Задания выдаёт отдельная кнопка «Выдать блок».
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Только показать, что будет сделано"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  create:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Инструменты курса
+        uses: actions/checkout@v4
+        with:
+          repository: IlyaChichkanov/Reinforcement-learning
+          path: _course
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Проверить логины
+        env:
+          GITHUB_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+        # не роняем запуск: ненайденные логины create пропустит и перечислит
+        run: |
+          python _course/tools/student_repos.py check --students students.csv > check.txt 2>&1 || true
+          cat check.txt
+          { echo "## Проверка логинов"; echo '```'; cat check.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Создать репозитории и пригласить
+        env:
+          GITHUB_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          ORG: ${{ github.repository_owner }}
+        # код выхода сохраняем явно: в оболочке по умолчанию «… | tee» его теряет
+        run: |
+          extra=""; [ "$DRY_RUN" = "true" ] && extra="--dry-run"
+          rc=0
+          python _course/tools/student_repos.py create --students students.csv --org "$ORG" $extra > report.txt 2>&1 || rc=$?
+          cat report.txt
+          { echo "## Репозитории"; echo '```'; cat report.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit $rc
