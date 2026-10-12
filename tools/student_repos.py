@@ -1,26 +1,31 @@
-"""Личные репозитории студентов в организации курса: создать, проверить, собрать работы.
+"""Личные репозитории студентов в организации курса: создать, выдать блок, собрать работы.
 
-Замена GitHub Classroom (закрыт 28.08.2026). Каждому студенту — закрытый репозиторий
-``<org>/<prefix>-<логин>`` из шаблона ``<org>/<prefix>``; студента приглашают в него
-с правом записи. Список берётся из CSV, выгруженного из таблицы логинов: нужны
-столбцы с «ФИО» и «логин» в названии (как «№,ФИО,GitHub-логин»), пустые логины
-пропускаются.
+Замена GitHub Classroom (закрыт 28.08.2026). У каждого студента один закрытый
+репозиторий на весь курс — ``<org>/<prefix>-<логин>`` из шаблона ``<org>/rl-template``.
+Домашки выдаются в него папками ``hw1/``, ``hw2/``, …: ноутбук и заготовки кодов квизов.
+
+Список студентов — CSV, выгруженный из таблицы логинов: нужны столбцы с «ФИО» и
+«логин» в названии (как «№,ФИО,GitHub-логин»); строки над заголовком и пустые
+логины пропускаются.
 
     python tools/student_repos.py check   --students students.csv
-    python tools/student_repos.py create  --students students.csv --org rl-course-misis --prefix rl-hw-block1
-    python tools/student_repos.py status  --students students.csv --org rl-course-misis --prefix rl-hw-block1
-    python tools/student_repos.py collect --students students.csv --org rl-course-misis --prefix rl-hw-block1 \\
+    python tools/student_repos.py create  --students students.csv --org rl-course-misis
+    python tools/student_repos.py issue   --students students.csv --org rl-course-misis --block 1 \\
+                                          --source homeworks/hw1
+    python tools/student_repos.py status  --students students.csv --org rl-course-misis --block 1
+    python tools/student_repos.py collect --students students.csv --org rl-course-misis --block 1 \\
                                           --into block1 [--before 2026-10-28T23:59:59+03:00]
 
 Токен — из GITHUB_TOKEN: fine-grained, на организацию, права Administration и Contents
 (запись), Metadata (чтение). Адрес API можно подменить через GITHUB_API_URL (для тестов).
-``create`` можно запускать сколько угодно раз: существующие репозитории и уже
-приглашённые студенты пропускаются.
+``create`` и ``issue`` можно запускать сколько угодно раз: существующие репозитории,
+приглашения и файлы пропускаются — работа студента никогда не перезаписывается.
 """
 
 from __future__ import annotations
 
 import argparse
+import base64
 import csv
 import json
 import os
@@ -35,18 +40,29 @@ from pathlib import Path
 
 API = os.environ.get("GITHUB_API_URL", "https://api.github.com").rstrip("/")
 RE_LOGIN = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$")
-FILES = ("homework.ipynb",)     # что забирать из корня репозитория студента
-QUIZ_DIR = "quiz"               # и все .txt из этого каталога
+NOTEBOOK = "homework.ipynb"
+QUIZ_DIR = "quiz"
+ISSUE_MESSAGE = "Выдан блок {block}"        # autograde.yml пропускает коммиты с таким началом
+
+QUIZ_PLACEHOLDER = """\
+# Код результата квиза по лекции {week}.
+# Пройдите квиз в зачётном режиме, нажмите «Скопировать» и вставьте код
+# одной строкой вместо этой подсказки. Строки, начинающиеся с #, игнорируются.
+#
+# Выглядеть должно так:  W{week}:IVAN23:BDAACBDABCAD:7F3A
+
+вставьте сюда код результата
+"""
 
 
 @dataclass
 class Student:
     name: str
-    login: str      # нормализованный, как вписан
+    login: str      # нормализованный
     raw: str        # как вписан в таблицу — для сообщений
 
-    def repo(self, prefix: str) -> str:
-        return f"{prefix}-{self.login.lower()}"
+    def repo(self, org: str, prefix: str) -> str:
+        return f"{org}/{prefix}-{self.login.lower()}"
 
 
 # ---------- список студентов ----------
@@ -76,9 +92,9 @@ def read_students(path: Path) -> tuple[list[Student], list[str]]:
 
     students, bad = [], []
     seen: dict[str, str] = {}
+    width = max(i_login, i_name) + 1
     for r in rows[header_at + 1:]:
-        if len(r) <= max(i_login, i_name):
-            r = r + [""] * (max(i_login, i_name) + 1 - len(r))
+        r = r + [""] * (width - len(r))
         name, raw = r[i_name].strip(), r[i_login].strip()
         if not name or not raw:
             continue
@@ -117,8 +133,7 @@ class GitHub:
         for attempt in range(4):
             try:
                 with urllib.request.urlopen(req, timeout=60) as resp:
-                    raw = resp.read()
-                    status = resp.status
+                    raw, status = resp.read(), resp.status
                 break
             except urllib.error.HTTPError as e:
                 raw, status = e.read(), e.code
@@ -128,7 +143,7 @@ class GitHub:
                     time.sleep(int(e.headers.get("Retry-After") or 2 ** attempt))
                     continue
                 break
-        if accept.endswith("raw") or accept.endswith("raw+json"):
+        if accept.endswith("raw+json"):
             return status, raw
         try:
             return status, json.loads(raw) if raw else None
@@ -144,27 +159,29 @@ def fail(what: str, status: int, payload) -> str:
     return f"{what}: HTTP {status} {msg}"
 
 
+def q(path: str) -> str:
+    return urllib.parse.quote(path)
+
+
 # ---------- команды ----------
 
 def cmd_check(gh: GitHub, students: list[Student], args) -> int:
     missing = 0
     for s in students:
-        status, data = gh.get(f"/users/{s.login}")
+        status, data = gh.get(f"/users/{q(s.login)}")
         if status == 200:
             note = "" if data.get("login") == s.login else f" (на GitHub: {data.get('login')})"
             print(f"  ok        {s.login:24} {s.name}{note}")
-        elif status == 404:
-            missing += 1
-            print(f"  НЕ НАЙДЕН {s.raw:24} {s.name}")
         else:
             missing += 1
-            print(f"  ошибка    {s.raw:24} {s.name}: {fail('', status, data)}")
+            what = "НЕ НАЙДЕН" if status == 404 else f"ошибка {status}"
+            print(f"  {what:9} {s.raw:24} {s.name}")
     print(f"\nНайдено {len(students) - missing} из {len(students)}.")
     return 1 if missing else 0
 
 
 def cmd_create(gh: GitHub, students: list[Student], args) -> int:
-    template = args.template or f"{args.org}/{args.prefix}"
+    template = args.template or f"{args.org}/rl-template"
     if not gh.dry_run:
         status, data = gh.get(f"/repos/{template}")
         if status != 200:
@@ -174,12 +191,12 @@ def cmd_create(gh: GitHub, students: list[Student], args) -> int:
 
     created = existing = invited = errors = 0
     for s in students:
-        repo = f"{args.org}/{s.repo(args.prefix)}"
+        repo = s.repo(args.org, args.prefix)
         if gh.dry_run:
             print(f"  [dry-run] {repo} ← {template}; пригласить {s.login} ({s.name})")
             continue
 
-        status, data = gh.get(f"/users/{s.login}")
+        status, data = gh.get(f"/users/{q(s.login)}")
         if status != 200:
             errors += 1
             print(f"  ПРОПУЩЕН  {s.name}: логин «{s.raw}» не найден на GitHub")
@@ -188,8 +205,8 @@ def cmd_create(gh: GitHub, students: list[Student], args) -> int:
         status, data = gh.get(f"/repos/{repo}")
         if status == 404:
             status, data = gh.call("POST", f"/repos/{template}/generate", {
-                "owner": args.org, "name": s.repo(args.prefix), "private": True,
-                "description": f"{args.prefix}: {s.name}"})
+                "owner": args.org, "name": repo.split("/", 1)[1], "private": True,
+                "description": f"Домашние задания: {s.name}"})
             if status != 201:
                 errors += 1
                 print("  ОШИБКА    " + fail(f"{repo} не создан", status, data))
@@ -206,7 +223,7 @@ def cmd_create(gh: GitHub, students: list[Student], args) -> int:
 
         # репозиторий из шаблона появляется не мгновенно — несколько попыток
         for attempt in range(5):
-            status, data = gh.call("PUT", f"/repos/{repo}/collaborators/{s.login}",
+            status, data = gh.call("PUT", f"/repos/{repo}/collaborators/{q(s.login)}",
                                    {"permission": "push"})
             if status != 404:
                 break
@@ -225,34 +242,79 @@ def cmd_create(gh: GitHub, students: list[Student], args) -> int:
     return 1 if errors else 0
 
 
-def student_commits(gh: GitHub, repo: str, login: str) -> list[dict]:
-    status, data = gh.get(f"/repos/{repo}/commits?per_page=100")
-    if status != 200 or not isinstance(data, list):
-        return []
-    return [c for c in data if ((c.get("author") or {}).get("login") or "").lower() == login.lower()]
+def block_files(args) -> dict[str, bytes]:
+    """Что выдать в hwN/: ноутбук из --source и заготовки кодов квизов."""
+    src = Path(args.source)
+    nb = src / NOTEBOOK
+    if not nb.is_file():
+        sys.exit(f"{nb}: нет ноутбука блока")
+    weeks = ([int(w) for w in args.weeks.split(",")] if args.weeks
+             else [2 * args.block - 1, 2 * args.block])
+    files = {f"hw{args.block}/{NOTEBOOK}": nb.read_bytes()}
+    for w in weeks:
+        files[f"hw{args.block}/{QUIZ_DIR}/week{w:02d}.txt"] = QUIZ_PLACEHOLDER.format(week=w).encode()
+    return files
+
+
+def cmd_issue(gh: GitHub, students: list[Student], args) -> int:
+    files = block_files(args)
+    message = ISSUE_MESSAGE.format(block=args.block)
+    print("Файлы блока: " + ", ".join(files) + "\n")
+    added = errors = 0
+    for s in students:
+        repo = s.repo(args.org, args.prefix)
+        if gh.dry_run:
+            print(f"  [dry-run] {repo}: положить {len(files)} файла, если их там нет")
+            continue
+        status, data = gh.get(f"/repos/{repo}")
+        if status != 200:
+            errors += 1
+            print(f"  НЕТ РЕПО  {repo} — сначала «Создать репозитории студентов»")
+            continue
+        put, kept = [], []
+        for path, content in files.items():
+            status, _ = gh.get(f"/repos/{repo}/contents/{q(path)}")
+            if status == 200:
+                kept.append(path)          # уже есть — не трогаем, там может быть работа студента
+                continue
+            status, data = gh.call("PUT", f"/repos/{repo}/contents/{q(path)}", {
+                "message": message, "content": base64.b64encode(content).decode()})
+            if status in (200, 201):
+                put.append(path)
+            else:
+                errors += 1
+                print("  ОШИБКА    " + fail(f"{repo}/{path}", status, data))
+        added += len(put)
+        state = f"добавлено {len(put)}" + (f", уже было {len(kept)}" if kept else "")
+        print(f"  {s.login:24} {state}")
+    if not gh.dry_run:
+        print(f"\nДобавлено файлов: {added}, ошибок {errors}.")
+    return 1 if errors else 0
 
 
 def cmd_status(gh: GitHub, students: list[Student], args) -> int:
-    print(f"  {'логин':24} {'приглашение':12} {'коммитов':9} последний  ФИО")
+    hw = f"hw{args.block}"
+    print(f"  {'логин':24} {'приглашение':12} {'коммитов в ' + hw:15} последний  ФИО")
     for s in students:
-        repo = f"{args.org}/{s.repo(args.prefix)}"
+        repo = s.repo(args.org, args.prefix)
         status, _ = gh.get(f"/repos/{repo}")
         if status != 200:
-            print(f"  {s.login:24} {'нет репо':12} {'':9} {'':10} {s.name}")
+            print(f"  {s.login:24} {'нет репо':12} {'':15} {'':10} {s.name}")
             continue
         _, inv = gh.get(f"/repos/{repo}/invitations")
         pending = any(((i.get("invitee") or {}).get("login") or "").lower() == s.login.lower()
                       for i in (inv if isinstance(inv, list) else []))
-        commits = student_commits(gh, repo, s.login)
-        last = commits[0]["commit"]["committer"]["date"][:10] if commits else ""
+        _, commits = gh.get(f"/repos/{repo}/commits?path={q(hw)}&per_page=100")
+        mine = [c for c in (commits if isinstance(commits, list) else [])
+                if ((c.get("author") or {}).get("login") or "").lower() == s.login.lower()]
+        last = mine[0]["commit"]["committer"]["date"][:10] if mine else ""
         print(f"  {s.login:24} {'не принято' if pending else 'принято':12} "
-              f"{len(commits):<9} {last:10} {s.name}")
+              f"{len(mine):<15} {last:10} {s.name}")
     return 0
 
 
-def fetch(gh: GitHub, repo: str, path: str, ref: str | None) -> bytes | None:
-    q = f"?ref={urllib.parse.quote(ref)}" if ref else ""
-    status, data = gh.get(f"/repos/{repo}/contents/{urllib.parse.quote(path)}{q}",
+def fetch(gh: GitHub, repo: str, path: str, ref: str) -> bytes | None:
+    status, data = gh.get(f"/repos/{repo}/contents/{q(path)}?ref={q(ref)}",
                           accept="application/vnd.github.raw+json")
     return data if status == 200 else None
 
@@ -266,65 +328,73 @@ def write_if_changed(path: Path, content: bytes) -> bool:
 
 
 def cmd_collect(gh: GitHub, students: list[Student], args) -> int:
+    hw = f"hw{args.block}"
     into = Path(args.into)
     changed = 0
     for s in students:
-        repo = f"{args.org}/{s.repo(args.prefix)}"
-        ref = None
-        if args.before:
-            until = urllib.parse.quote(args.before)
-            status, data = gh.get(f"/repos/{repo}/commits?until={until}&per_page=1")
-            if status != 200 or not data:
-                print(f"  {s.login:24} нет коммитов до {args.before}")
-                continue
-            ref = data[0]["sha"]
-        else:
-            status, data = gh.get(f"/repos/{repo}/commits?per_page=1")
-            if status != 200 or not data:
-                print(f"  {s.login:24} нет репозитория")
-                continue
-            ref = data[0]["sha"]
+        repo = s.repo(args.org, args.prefix)
+        until = f"&until={q(args.before)}" if args.before else ""
+        status, data = gh.get(f"/repos/{repo}/commits?per_page=1{until}")
+        if status != 200 or not data:
+            why = f"нет коммитов до {args.before}" if args.before and status == 200 else "нет репозитория"
+            print(f"  {s.login:24} {why}")
+            continue
         commit = data[0]
+        ref = commit["sha"]
 
         files: dict[str, bytes] = {}
-        for name in FILES:
-            content = fetch(gh, repo, name, ref)
-            if content is not None:
-                files[name] = content
-        status, listing = gh.get(f"/repos/{repo}/contents/{QUIZ_DIR}?ref={ref}")
+        content = fetch(gh, repo, f"{hw}/{NOTEBOOK}", ref)
+        if content is None:
+            print(f"  {s.login:24} блок {args.block} не выдан")
+            continue
+        files[NOTEBOOK] = content
+        status, listing = gh.get(f"/repos/{repo}/contents/{q(hw + '/' + QUIZ_DIR)}?ref={q(ref)}")
         for item in listing if status == 200 and isinstance(listing, list) else []:
             if item.get("type") == "file" and item["name"].endswith(".txt"):
-                content = fetch(gh, repo, f"{QUIZ_DIR}/{item['name']}", ref)
+                content = fetch(gh, repo, f"{hw}/{QUIZ_DIR}/{item['name']}", ref)
                 if content is not None:
                     files[f"{QUIZ_DIR}/{item['name']}"] = content
 
-        meta = {"login": s.login, "name": s.name, "repo": repo, "sha": ref,
-                "date": commit["commit"]["committer"]["date"],
-                "by_student": ((commit.get("author") or {}).get("login") or "").lower() == s.login.lower()}
+        # последний коммит студента в папке блока — когда он реально сдавал
+        _, mine = gh.get(f"/repos/{repo}/commits?path={q(hw)}&sha={q(ref)}&per_page=100")
+        mine = [c for c in (mine if isinstance(mine, list) else [])
+                if ((c.get("author") or {}).get("login") or "").lower() == s.login.lower()]
+        meta = {"login": s.login, "name": s.name, "repo": repo, "block": args.block,
+                "snapshot_sha": ref,
+                "submitted_at": mine[0]["commit"]["committer"]["date"] if mine else None,
+                "student_commits": len(mine)}
         files["meta.json"] = (json.dumps(meta, ensure_ascii=False, indent=1) + "\n").encode()
 
         dest = into / s.login.lower()
         n = sum(write_if_changed(dest / rel, content) for rel, content in files.items())
         changed += n
-        print(f"  {s.login:24} {meta['date'][:16]} {ref[:7]} {'обновлено' if n else 'без изменений'}")
+        when = (meta["submitted_at"] or "не сдавал")[:16]
+        print(f"  {s.login:24} {when:16} {'обновлено' if n else 'без изменений'}")
     print(f"\nИзменено файлов: {changed}.")
     return 0
 
 
 def main() -> int:
     p = argparse.ArgumentParser(description="Личные репозитории студентов в организации курса")
-    p.add_argument("command", choices=["check", "create", "status", "collect"])
+    p.add_argument("command", choices=["check", "create", "issue", "status", "collect"])
     p.add_argument("--students", type=Path, required=True, help="CSV с ФИО и GitHub-логинами")
     p.add_argument("--org", help="организация, например rl-course-misis")
-    p.add_argument("--prefix", help="префикс репозиториев = имя шаблона, например rl-hw-block1")
-    p.add_argument("--template", help="шаблон, по умолчанию <org>/<prefix>")
+    p.add_argument("--prefix", default="rl", help="репозитории <prefix>-<логин> (по умолчанию rl)")
+    p.add_argument("--template", help="create: шаблон, по умолчанию <org>/rl-template")
+    p.add_argument("--block", type=int, help="issue/status/collect: номер блока")
+    p.add_argument("--source", help="issue: каталог блока с homework.ipynb, например homeworks/hw1")
+    p.add_argument("--weeks", help="issue: недели квизов через запятую, по умолчанию 2N-1,2N")
     p.add_argument("--into", help="collect: куда складывать работы")
     p.add_argument("--before", help="collect: взять последний коммит не позже этого момента (ISO 8601)")
-    p.add_argument("--dry-run", action="store_true", help="create: только показать, что будет сделано")
+    p.add_argument("--dry-run", action="store_true", help="create/issue: только показать, что будет сделано")
     args = p.parse_args()
 
-    if args.command != "check" and not (args.org and args.prefix):
-        p.error("нужны --org и --prefix")
+    if args.command != "check" and not args.org:
+        p.error("нужен --org")
+    if args.command in ("issue", "status", "collect") and not args.block:
+        p.error(f"{args.command}: нужен --block")
+    if args.command == "issue" and not args.source:
+        p.error("issue: нужен --source")
     if args.command == "collect" and not args.into:
         p.error("collect: нужен --into")
 
@@ -334,8 +404,9 @@ def main() -> int:
     print(f"Студентов с логином: {len(students)}\n")
 
     gh = GitHub(os.environ.get("GITHUB_TOKEN"), dry_run=args.dry_run)
-    code = {"check": cmd_check, "create": cmd_create,
-            "status": cmd_status, "collect": cmd_collect}[args.command](gh, students, args)
+    commands = {"check": cmd_check, "create": cmd_create, "issue": cmd_issue,
+                "status": cmd_status, "collect": cmd_collect}
+    code = commands[args.command](gh, students, args)
     # плохой логин в таблице — повод исправить её перед созданием репо, но не валить сбор работ
     return code or (1 if bad and args.command in ("check", "create") else 0)
 

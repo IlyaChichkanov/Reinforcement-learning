@@ -1,13 +1,15 @@
 name: Проверка работы
 
+# Проверяет блоки hwN/, которые изменились в этом пуше: ноутбук выполнен целиком,
+# заготовок и упавших ячеек нет, коды квизов вставлены и не испорчены.
+# Коммиты выдачи задания («Выдан блок N») не проверяются. Запуск вручную проверяет все блоки.
+
 on:
   push:
-  pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
-  pull-requests: write
 
 jobs:
   check:
@@ -15,6 +17,8 @@ jobs:
     steps:
       - name: Забрать работу студента
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Забрать инструменты курса
         uses: actions/checkout@v4
@@ -26,50 +30,38 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Код результата квиза
-        id: quiz
-        # код выхода сохраняем явно: в оболочке по умолчанию «… | tee» его теряет
+      - name: Проверить сданные блоки
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          SHA: ${{ github.sha }}
+          MESSAGE: ${{ github.event.head_commit.message }}
+        # код выхода собираем явно: в оболочке по умолчанию «… | tee» его теряет
         run: |
-          rc=0
-          python _course/tools/check_quiz_code.py --required quiz/*.txt > quiz_report.txt 2>&1 || rc=$?
-          cat quiz_report.txt
-          { echo "## Код результата квиза"; echo '```'; cat quiz_report.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
-          exit $rc
+          say() { echo "$1"; echo "$1" >> "$GITHUB_STEP_SUMMARY"; }
+          case "$MESSAGE" in "Выдан блок"*) say "Выдано новое задание — проверять пока нечего."; exit 0;; esac
 
-      - name: Ноутбук с домашним заданием
-        if: always()
-        run: |
-          rc=0
-          python _course/tools/check_homework.py homework.ipynb > nb_report.txt 2>&1 || rc=$?
-          cat nb_report.txt
-          { echo "## Ноутбук"; echo '```'; cat nb_report.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
-          exit $rc
+          if [ "$EVENT" = push ] && [ -n "${BEFORE//0/}" ] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            blocks=$(git diff --name-only "$BEFORE" "$SHA" | sed -n 's#^\(hw[0-9][0-9]*\)/.*#\1#p' | sort -u)
+          else
+            blocks=$(find . -maxdepth 1 -type d -name 'hw[0-9]*' -printf '%f\n' | sort)
+          fi
+          if [ -z "$blocks" ]; then say "Папки домашек не менялись — проверять нечего."; exit 0; fi
 
-      - name: Написать отчёт в pull request
-        if: always() && github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            const read = (f) => { try { return fs.readFileSync(f, 'utf8').trim(); } catch { return 'проверка не запускалась'; } };
-            const body = [
-              '### Автопроверка работы',
-              '',
-              '**Код результата квиза**',
-              '```', read('quiz_report.txt'), '```',
-              '',
-              '**Ноутбук**',
-              '```', read('nb_report.txt'), '```',
-              '',
-              '_Автопроверка смотрит только на полноту сдачи: баллы за квиз и за задания выставляет преподаватель._',
-            ].join('\n');
-            const { owner, repo } = context.repo;
-            const number = context.payload.pull_request.number;
-            const marker = '### Автопроверка работы';
-            const comments = await github.rest.issues.listComments({ owner, repo, issue_number: number });
-            const mine = comments.data.find(c => c.user.type === 'Bot' && c.body.startsWith(marker));
-            if (mine) {
-              await github.rest.issues.updateComment({ owner, repo, comment_id: mine.id, body });
-            } else {
-              await github.rest.issues.createComment({ owner, repo, issue_number: number, body });
-            }
+          rc=0
+          for b in $blocks; do
+            [ -d "$b" ] || continue
+            r=0
+            {
+              echo "### $b: коды квизов"
+              python _course/tools/check_quiz_code.py --required "$b"/quiz/*.txt 2>&1 || r=1
+              echo
+              echo "### $b: ноутбук"
+              python _course/tools/check_homework.py "$b/homework.ipynb" 2>&1 || r=1
+            } > report.txt
+            cat report.txt
+            if [ $r -eq 0 ]; then verdict="✅ $b сдано полностью"; else verdict="❌ $b: есть что поправить"; rc=1; fi
+            { echo "## $verdict"; echo '```'; cat report.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+            echo "$verdict"
+          done
+          exit $rc

@@ -1,7 +1,7 @@
 name: Собрать работы
 
 # Каждый час и по кнопке: копирует homework.ipynb и quiz/*.txt из всех репозиториев
-# студентов текущего блока в blockN/<логин>/ этого репозитория и коммитит изменения.
+# студентов (папка hwN/ текущего блока) в blockN/<логин>/ этого репозитория и коммитит изменения.
 # Текущий блок — переменная репозитория CURRENT_BLOCK (Settings → Secrets and variables →
 # Actions → Variables), по умолчанию 1. Для сдачи на момент дедлайна запустите вручную
 # с полем «before», например 2026-10-28T23:59:59+03:00 — результат ляжет в blockN-deadline/.
@@ -54,7 +54,7 @@ jobs:
           echo "INTO=$into" >> "$GITHUB_ENV"
           rc=0
           python _course/tools/student_repos.py collect --students students.csv \
-            --org "$ORG" --prefix "rl-hw-block$BLOCK" --into "$into" "${extra[@]}" > report.txt 2>&1 || rc=$?
+            --org "$ORG" --block "$BLOCK" --into "$into" "${extra[@]}" > report.txt 2>&1 || rc=$?
           cat report.txt
           { echo "## Блок $BLOCK → $into"; echo '```'; cat report.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           exit $rc

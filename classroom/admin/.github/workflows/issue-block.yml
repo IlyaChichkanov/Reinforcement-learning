@@ -1,0 +1,52 @@
+name: Выдать блок
+
+# Запуск вручную: Actions → «Выдать блок» → Run workflow → номер блока.
+# Кладёт в репозиторий каждого студента папку hwN/: ноутбук из homeworks/hwN/ курса
+# и заготовки кодов квизов (недели 2N-1 и 2N). Уже существующие файлы не трогает —
+# повторный запуск безопасен и ничего не перезапишет у тех, кто начал работу.
+
+on:
+  workflow_dispatch:
+    inputs:
+      block:
+        description: "Номер блока"
+        required: true
+      dry_run:
+        description: "Только показать, что будет сделано"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  issue:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Инструменты и задания курса
+        uses: actions/checkout@v4
+        with:
+          repository: IlyaChichkanov/Reinforcement-learning
+          path: _course
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Выдать
+        env:
+          GITHUB_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+          BLOCK: ${{ inputs.block }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          ORG: ${{ github.repository_owner }}
+        run: |
+          case "$BLOCK" in (*[!0-9]*|'') echo "номер блока — число"; exit 1;; esac
+          extra=""; [ "$DRY_RUN" = "true" ] && extra="--dry-run"
+          rc=0
+          python _course/tools/student_repos.py issue --students students.csv --org "$ORG" \
+            --block "$BLOCK" --source "_course/homeworks/hw$BLOCK" $extra > report.txt 2>&1 || rc=$?
+          cat report.txt
+          { echo "## Блок $BLOCK"; echo '```'; cat report.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit $rc
