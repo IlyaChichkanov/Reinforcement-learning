@@ -14,7 +14,7 @@ on:
         default: false
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   create:
@@ -49,8 +49,31 @@ jobs:
         # код выхода сохраняем явно: в оболочке по умолчанию «… | tee» его теряет
         run: |
           extra=""; [ "$DRY_RUN" = "true" ] && extra="--dry-run"
+          if [ -n "$extra" ]; then echo "режим: ПРОБНЫЙ (dry-run) — ничего не создаётся" > report.txt; else echo "режим: настоящий" > report.txt; fi
           rc=0
-          python _course/tools/student_repos.py create --students students.csv --org "$ORG" $extra > report.txt 2>&1 || rc=$?
+          python _course/tools/student_repos.py create --students students.csv --org "$ORG" $extra >> report.txt 2>&1 || rc=$?
           cat report.txt
           { echo "## Репозитории"; echo '```'; cat report.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           exit $rc
+
+      - name: Сохранить отчёт в reports/
+        if: always()
+        env:
+          NAME: create-repos
+          PARAMS: "dry_run=${{ inputs.dry_run }}"
+        # отчёт файлом в репозитории: его видно без открытия Actions (и его читает Claude)
+        run: |
+          mkdir -p reports
+          f="reports/$(date -u +%Y-%m-%d_%H%M%S)-$NAME.txt"
+          {
+            echo "запуск: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            echo "параметры: $PARAMS"
+            echo
+            for r in check.txt report.txt; do if [ -f "$r" ]; then cat "$r"; echo; fi; done
+          } > "$f"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- "$f"
+          git commit -q -m "Отчёт: $NAME"
+          for i in 1 2 3; do git pull -q --rebase && git push -q && exit 0; sleep 5; done
+          echo "не удалось сохранить отчёт"; exit 1

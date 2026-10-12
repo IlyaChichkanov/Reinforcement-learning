@@ -237,7 +237,9 @@ def cmd_create(gh: GitHub, students: list[Student], args) -> int:
             errors += 1
             print("  ОШИБКА    " + fail(f"{repo}: приглашение {s.login}", status, data))
 
-    if not gh.dry_run:
+    if gh.dry_run:
+        print("\nПробный запуск — ничего не создано. Запустите без dry_run.")
+    else:
         print(f"\nСоздано {created}, уже было {existing}, приглашений {invited}, ошибок {errors}.")
     return 1 if errors else 0
 
@@ -287,7 +289,9 @@ def cmd_issue(gh: GitHub, students: list[Student], args) -> int:
         added += len(put)
         state = f"добавлено {len(put)}" + (f", уже было {len(kept)}" if kept else "")
         print(f"  {s.login:24} {state}")
-    if not gh.dry_run:
+    if gh.dry_run:
+        print("\nПробный запуск — ничего не выдано. Запустите без dry_run.")
+    else:
         print(f"\nДобавлено файлов: {added}, ошибок {errors}.")
     return 1 if errors else 0
 
