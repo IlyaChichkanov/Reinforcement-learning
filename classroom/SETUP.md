@@ -57,8 +57,12 @@ github.com → аватар → **Settings → Developer settings → Personal a
 
 ### 6. Личные коды для квизов
 
+Раздавать их вручную не нужно: «Создать репозитории» и «Выдать блок» кладут каждому студенту в репозиторий `МОЙ_КОД_ДЛЯ_КВИЗОВ.txt`. Группа для кодов — переменная `QUIZ_GROUP` в `course-admin` (по умолчанию `RL-2026`); не меняйте её посреди курса, иначе коды изменятся.
+
+Полный список кодов для `grade_quiz.py` — тем же способом по `students.csv` из `course-admin`:
+
 ```bash
-uv run python tools/make_roster.py students.csv   # CSV со столбцами фамилия,имя,группа
+uv run python tools/make_roster.py students.csv --from-fio --group RL-2026   # → roster.csv
 ```
 
 `roster.csv` в публичный репозиторий не коммитится.

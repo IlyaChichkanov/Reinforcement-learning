@@ -16,6 +16,10 @@
     python tools/student_repos.py collect --students students.csv --org rl-course-misis --block 1 \\
                                           --into block1 [--before 2026-10-28T23:59:59+03:00]
 
+С ``--group`` (``create`` и ``issue``) в репозиторий студента кладётся ещё файл
+``МОЙ_КОД_ДЛЯ_КВИЗОВ.txt`` с личным кодом для зачётного режима квизов. Код тот же, что
+выдаёт ``make_roster.py --from-fio --group …`` по этому же students.csv.
+
 Токен — из GITHUB_TOKEN: fine-grained, на организацию, права Administration и Contents
 (запись), Metadata (чтение). Адрес API можно подменить через GITHUB_API_URL (для тестов).
 ``create`` и ``issue`` можно запускать сколько угодно раз: существующие репозитории,
@@ -43,6 +47,16 @@ RE_LOGIN = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$")
 NOTEBOOK = "homework.ipynb"
 QUIZ_DIR = "quiz"
 ISSUE_MESSAGE = "Выдан блок {block}"        # autograde.yml пропускает коммиты с таким началом
+
+CODE_FILE = "МОЙ_КОД_ДЛЯ_КВИЗОВ.txt"
+CODE_TEXT = """\
+Ваш личный код для квизов: {code}
+
+Вводите его на странице квизов в режиме «Зачёт»:
+https://ilyachichkanov.github.io/Reinforcement-learning/
+
+Код личный — не передавайте его другим: по нему засчитываются ваши результаты.
+"""
 
 QUIZ_PLACEHOLDER = """\
 # Код результата квиза по лекции {week}.
@@ -108,6 +122,35 @@ def read_students(path: Path) -> tuple[list[Student], list[str]]:
         seen[login.lower()] = name
         students.append(Student(name, login, raw))
     return students, bad
+
+
+def quiz_codes(path: Path, group: str) -> dict[str, str]:
+    """{«фамилия имя» в нижнем регистре: личный код} — как в make_roster.py --from-fio."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from make_roster import build_roster, read_fio
+    return {f"{r['фамилия']} {r['имя']}".lower(): r["код"] for r in build_roster(read_fio(path, group))}
+
+
+def code_file(s: Student, codes: dict[str, str]) -> dict[str, bytes]:
+    key = " ".join(s.name.split()[:2]).lower()
+    return {CODE_FILE: CODE_TEXT.format(code=codes[key]).encode()} if key in codes else {}
+
+
+def put_missing(gh: "GitHub", repo: str, files: dict[str, bytes], message: str) -> tuple[list[str], list[str], list[str]]:
+    """Положить файлы, которых ещё нет. (добавлено, уже было, ошибки)."""
+    put, kept, errs = [], [], []
+    for path, content in files.items():
+        status, _ = gh.get(f"/repos/{repo}/contents/{q(path)}")
+        if status == 200:
+            kept.append(path)          # уже есть — не трогаем, там может быть работа студента
+            continue
+        status, data = gh.call("PUT", f"/repos/{repo}/contents/{q(path)}", {
+            "message": message, "content": base64.b64encode(content).decode()})
+        if status in (200, 201):
+            put.append(path)
+        else:
+            errs.append(fail(f"{repo}/{path}", status, data))
+    return put, kept, errs
 
 
 # ---------- GitHub API ----------
@@ -189,6 +232,7 @@ def cmd_create(gh: GitHub, students: list[Student], args) -> int:
         if not data.get("is_template"):
             sys.exit(f"{template} не отмечен как Template repository (Settings → General)")
 
+    codes = quiz_codes(args.students, args.group) if args.group else None
     created = existing = invited = errors = 0
     for s in students:
         repo = s.repo(args.org, args.prefix)
@@ -236,8 +280,18 @@ def cmd_create(gh: GitHub, students: list[Student], args) -> int:
         else:
             errors += 1
             print("  ОШИБКА    " + fail(f"{repo}: приглашение {s.login}", status, data))
+        if codes is not None:
+            extra = code_file(s, codes)
+            if not extra:
+                print(f"            нет личного кода для «{s.name}»")
+            _, _, errs = put_missing(gh, repo, extra, "Личный код для квизов")
+            for e in errs:
+                errors += 1
+                print("  ОШИБКА    " + e)
 
-    if not gh.dry_run:
+    if gh.dry_run:
+        print("\nПробный запуск — ничего не создано. Запустите без dry_run.")
+    else:
         print(f"\nСоздано {created}, уже было {existing}, приглашений {invited}, ошибок {errors}.")
     return 1 if errors else 0
 
@@ -258,8 +312,9 @@ def block_files(args) -> dict[str, bytes]:
 
 def cmd_issue(gh: GitHub, students: list[Student], args) -> int:
     files = block_files(args)
+    codes = quiz_codes(args.students, args.group) if args.group else None
     message = ISSUE_MESSAGE.format(block=args.block)
-    print("Файлы блока: " + ", ".join(files) + "\n")
+    print("Файлы блока: " + ", ".join(files) + (f", {CODE_FILE}" if codes is not None else "") + "\n")
     added = errors = 0
     for s in students:
         repo = s.repo(args.org, args.prefix)
@@ -271,23 +326,21 @@ def cmd_issue(gh: GitHub, students: list[Student], args) -> int:
             errors += 1
             print(f"  НЕТ РЕПО  {repo} — сначала «Создать репозитории студентов»")
             continue
-        put, kept = [], []
-        for path, content in files.items():
-            status, _ = gh.get(f"/repos/{repo}/contents/{q(path)}")
-            if status == 200:
-                kept.append(path)          # уже есть — не трогаем, там может быть работа студента
-                continue
-            status, data = gh.call("PUT", f"/repos/{repo}/contents/{q(path)}", {
-                "message": message, "content": base64.b64encode(content).decode()})
-            if status in (200, 201):
-                put.append(path)
-            else:
-                errors += 1
-                print("  ОШИБКА    " + fail(f"{repo}/{path}", status, data))
+        mine = dict(files)
+        if codes is not None:
+            mine.update(code_file(s, codes))
+            if CODE_FILE not in mine:
+                print(f"  {s.login:24} нет личного кода для «{s.name}»")
+        put, kept, errs = put_missing(gh, repo, mine, message)
+        for e in errs:
+            errors += 1
+            print("  ОШИБКА    " + e)
         added += len(put)
         state = f"добавлено {len(put)}" + (f", уже было {len(kept)}" if kept else "")
         print(f"  {s.login:24} {state}")
-    if not gh.dry_run:
+    if gh.dry_run:
+        print("\nПробный запуск — ничего не выдано. Запустите без dry_run.")
+    else:
         print(f"\nДобавлено файлов: {added}, ошибок {errors}.")
     return 1 if errors else 0
 
@@ -383,6 +436,7 @@ def main() -> int:
     p.add_argument("--template", help="create: шаблон, по умолчанию <org>/rl-template")
     p.add_argument("--block", type=int, help="issue/status/collect: номер блока")
     p.add_argument("--source", help="issue: каталог блока с homework.ipynb, например homeworks/hw1")
+    p.add_argument("--group", help="create/issue: группа для личного кода квизов (положить МОЙ_КОД_ДЛЯ_КВИЗОВ.txt)")
     p.add_argument("--weeks", help="issue: недели квизов через запятую, по умолчанию 2N-1,2N")
     p.add_argument("--into", help="collect: куда складывать работы")
     p.add_argument("--before", help="collect: взять последний коммит не позже этого момента (ISO 8601)")

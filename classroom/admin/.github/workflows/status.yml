@@ -9,7 +9,7 @@ on:
         required: true
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   status:
@@ -37,3 +37,25 @@ jobs:
           cat report.txt
           { echo "## Блок $BLOCK"; echo '```'; cat report.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           exit $rc
+
+      - name: Сохранить отчёт в reports/
+        if: always()
+        env:
+          NAME: status
+          PARAMS: "block=${{ inputs.block }}"
+        # отчёт файлом в репозитории: его видно без открытия Actions (и его читает Claude)
+        run: |
+          mkdir -p reports
+          f="reports/$(date -u +%Y-%m-%d_%H%M%S)-$NAME.txt"
+          {
+            echo "запуск: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            echo "параметры: $PARAMS"
+            echo
+            for r in report.txt; do if [ -f "$r" ]; then cat "$r"; echo; fi; done
+          } > "$f"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- "$f"
+          git commit -q -m "Отчёт: $NAME"
+          for i in 1 2 3; do git pull -q --rebase && git push -q && exit 0; sleep 5; done
+          echo "не удалось сохранить отчёт"; exit 1
