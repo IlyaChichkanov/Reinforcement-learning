@@ -11,6 +11,9 @@ on:
       block:
         description: "Номер блока"
         required: true
+      weeks:
+        description: "Недели квизов через запятую (пусто — 2N-1 и 2N)"
+        required: false
       dry_run:
         description: "Только показать, что будет сделано"
         type: boolean
@@ -25,11 +28,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Инструменты и задания курса
+      - name: Инструменты
         uses: actions/checkout@v4
         with:
           repository: IlyaChichkanov/Reinforcement-learning
           path: _course
+
+      - name: Задания курса
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.COURSE_REPO || 'IlyaChichkanov/Reinforcement-learning' }}
+          path: _src
 
       - uses: actions/setup-python@v5
         with:
@@ -41,14 +50,21 @@ jobs:
           BLOCK: ${{ inputs.block }}
           DRY_RUN: ${{ inputs.dry_run }}
           GROUP: ${{ vars.QUIZ_GROUP || 'RL-2026' }}
+          PREFIX: ${{ vars.REPO_PREFIX || 'rl' }}
+          QUIZ_URL: ${{ vars.QUIZ_URL || 'https://ilyachichkanov.github.io/Reinforcement-learning/' }}
+          HW_PATH: ${{ vars.HW_PATH || 'homeworks/hw{N}' }}
+          WEEKS: ${{ inputs.weeks }}
           ORG: ${{ github.repository_owner }}
         run: |
           case "$BLOCK" in (*[!0-9]*|'') echo "номер блока — число"; exit 1;; esac
           extra=""; [ "$DRY_RUN" = "true" ] && extra="--dry-run"
+          # где лежит задание блока: {N} — номер, {NN} — номер с ведущим нулём (hw03.ipynb)
+          src="_src/$(echo "$HW_PATH" | sed "s/{NN}/$(printf %02d "$BLOCK")/g; s/{N}/$BLOCK/g")"
+          weeks=(); [ -n "$WEEKS" ] && weeks=(--weeks "$WEEKS")
           if [ -n "$extra" ]; then echo "режим: ПРОБНЫЙ (dry-run) — ничего не выдаётся" > report.txt; else echo "режим: настоящий" > report.txt; fi
           rc=0
-          python _course/tools/student_repos.py issue --students students.csv --org "$ORG" \
-            --block "$BLOCK" --source "_course/homeworks/hw$BLOCK" --group "$GROUP" $extra >> report.txt 2>&1 || rc=$?
+          python _course/tools/student_repos.py issue --students students.csv --org "$ORG" --prefix "$PREFIX" \
+            --block "$BLOCK" --source "$src" "${weeks[@]}" --group "$GROUP" --quiz-url "$QUIZ_URL" $extra >> report.txt 2>&1 || rc=$?
           cat report.txt
           { echo "## Блок $BLOCK"; echo '```'; cat report.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           exit $rc
@@ -57,7 +73,7 @@ jobs:
         if: always()
         env:
           NAME: issue-block
-          PARAMS: "block=${{ inputs.block }} dry_run=${{ inputs.dry_run }}"
+          PARAMS: "block=${{ inputs.block }} weeks=${{ inputs.weeks }} dry_run=${{ inputs.dry_run }}"
         # отчёт файлом в репозитории: его видно без открытия Actions (и его читает Claude)
         run: |
           mkdir -p reports
