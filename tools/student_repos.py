@@ -1,7 +1,8 @@
 """Личные репозитории студентов в организации курса: создать, выдать блок, собрать работы.
 
 Замена GitHub Classroom (закрыт 28.08.2026). У каждого студента один закрытый
-репозиторий на весь курс — ``<org>/<prefix>-<логин>`` из шаблона ``<org>/rl-template``.
+репозиторий на весь курс — ``<org>/<prefix>-<логин>`` из шаблона ``<org>/<prefix>-template``
+(для курса RL — ``rl-course-misis/rl-<логин>`` из ``rl-template``).
 Домашки выдаются в него папками ``hw1/``, ``hw2/``, …: ноутбук и заготовки кодов квизов.
 
 Список студентов — CSV, выгруженный из таблицы логинов: нужны столбцы с «ФИО» и
@@ -49,11 +50,12 @@ QUIZ_DIR = "quiz"
 ISSUE_MESSAGE = "Выдан блок {block}"        # autograde.yml пропускает коммиты с таким началом
 
 CODE_FILE = "МОЙ_КОД_ДЛЯ_КВИЗОВ.txt"
+QUIZ_URL = "https://ilyachichkanov.github.io/Reinforcement-learning/"
 CODE_TEXT = """\
 Ваш личный код для квизов: {code}
 
 Вводите его на странице квизов в режиме «Зачёт»:
-https://ilyachichkanov.github.io/Reinforcement-learning/
+{url}
 
 Код личный — не передавайте его другим: по нему засчитываются ваши результаты.
 """
@@ -131,9 +133,9 @@ def quiz_codes(path: Path, group: str) -> dict[str, str]:
     return {f"{r['фамилия']} {r['имя']}".lower(): r["код"] for r in build_roster(read_fio(path, group))}
 
 
-def code_file(s: Student, codes: dict[str, str]) -> dict[str, bytes]:
+def code_file(s: Student, codes: dict[str, str], url: str = QUIZ_URL) -> dict[str, bytes]:
     key = " ".join(s.name.split()[:2]).lower()
-    return {CODE_FILE: CODE_TEXT.format(code=codes[key]).encode()} if key in codes else {}
+    return {CODE_FILE: CODE_TEXT.format(code=codes[key], url=url).encode()} if key in codes else {}
 
 
 def put_missing(gh: "GitHub", repo: str, files: dict[str, bytes], message: str) -> tuple[list[str], list[str], list[str]]:
@@ -144,8 +146,13 @@ def put_missing(gh: "GitHub", repo: str, files: dict[str, bytes], message: str) 
         if status == 200:
             kept.append(path)          # уже есть — не трогаем, там может быть работа студента
             continue
-        status, data = gh.call("PUT", f"/repos/{repo}/contents/{q(path)}", {
-            "message": message, "content": base64.b64encode(content).decode()})
+        # в только что созданном из шаблона репо ветка появляется не сразу: 404/409 — подождать и повторить
+        for attempt in range(5):
+            status, data = gh.call("PUT", f"/repos/{repo}/contents/{q(path)}", {
+                "message": message, "content": base64.b64encode(content).decode()})
+            if status not in (404, 409):
+                break
+            time.sleep(2 + 2 * attempt)
         if status in (200, 201):
             put.append(path)
         else:
@@ -224,7 +231,7 @@ def cmd_check(gh: GitHub, students: list[Student], args) -> int:
 
 
 def cmd_create(gh: GitHub, students: list[Student], args) -> int:
-    template = args.template or f"{args.org}/rl-template"
+    template = args.template or f"{args.org}/{args.prefix}-template"
     if not gh.dry_run:
         status, data = gh.get(f"/repos/{template}")
         if status != 200:
@@ -281,7 +288,7 @@ def cmd_create(gh: GitHub, students: list[Student], args) -> int:
             errors += 1
             print("  ОШИБКА    " + fail(f"{repo}: приглашение {s.login}", status, data))
         if codes is not None:
-            extra = code_file(s, codes)
+            extra = code_file(s, codes, args.quiz_url)
             if not extra:
                 print(f"            нет личного кода для «{s.name}»")
             _, _, errs = put_missing(gh, repo, extra, "Личный код для квизов")
@@ -297,14 +304,21 @@ def cmd_create(gh: GitHub, students: list[Student], args) -> int:
 
 
 def block_files(args) -> dict[str, bytes]:
-    """Что выдать в hwN/: ноутбук из --source и заготовки кодов квизов."""
+    """Что выдать в hwN/: ноутбук, описание (если есть) и заготовки кодов квизов.
+
+    --source — каталог с homework.ipynb (и, если есть, README.md), как homeworks/hw1 курса RL,
+    или сам ноутбук, как homeworks/hw03.ipynb; тогда описание — одноимённый .md рядом.
+    У студента ноутбук всегда называется hwN/homework.ipynb, описание — hwN/README.md.
+    """
     src = Path(args.source)
-    nb = src / NOTEBOOK
-    if not nb.is_file():
-        sys.exit(f"{nb}: нет ноутбука блока")
-    weeks = ([int(w) for w in args.weeks.split(",")] if args.weeks
+    nb, md = (src / NOTEBOOK, src / "README.md") if src.is_dir() else (src, src.with_suffix(".md"))
+    if not nb.is_file() or nb.suffix != ".ipynb":
+        sys.exit(f"{nb}: нет ноутбука блока (проверьте номер блока и путь к заданиям HW_PATH)")
+    weeks = ([int(w) for w in args.weeks.split(",") if w.strip()] if args.weeks
              else [2 * args.block - 1, 2 * args.block])
     files = {f"hw{args.block}/{NOTEBOOK}": nb.read_bytes()}
+    if md.is_file():
+        files[f"hw{args.block}/README.md"] = md.read_bytes()
     for w in weeks:
         files[f"hw{args.block}/{QUIZ_DIR}/week{w:02d}.txt"] = QUIZ_PLACEHOLDER.format(week=w).encode()
     return files
@@ -328,7 +342,7 @@ def cmd_issue(gh: GitHub, students: list[Student], args) -> int:
             continue
         mine = dict(files)
         if codes is not None:
-            mine.update(code_file(s, codes))
+            mine.update(code_file(s, codes, args.quiz_url))
             if CODE_FILE not in mine:
                 print(f"  {s.login:24} нет личного кода для «{s.name}»")
         put, kept, errs = put_missing(gh, repo, mine, message)
@@ -395,18 +409,18 @@ def cmd_collect(gh: GitHub, students: list[Student], args) -> int:
         commit = data[0]
         ref = commit["sha"]
 
-        files: dict[str, bytes] = {}
-        content = fetch(gh, repo, f"{hw}/{NOTEBOOK}", ref)
-        if content is None:
+        # вся папка блока: ноутбук, коды квизов и всё, что студент положил сам (например, PDF с теорией)
+        status, tree = gh.get(f"/repos/{repo}/git/trees/{q(ref)}?recursive=1")
+        paths = [t["path"] for t in (tree.get("tree", []) if status == 200 and isinstance(tree, dict) else [])
+                 if t.get("type") == "blob" and t["path"].startswith(hw + "/")]
+        if f"{hw}/{NOTEBOOK}" not in paths:
             print(f"  {s.login:24} блок {args.block} не выдан")
             continue
-        files[NOTEBOOK] = content
-        status, listing = gh.get(f"/repos/{repo}/contents/{q(hw + '/' + QUIZ_DIR)}?ref={q(ref)}")
-        for item in listing if status == 200 and isinstance(listing, list) else []:
-            if item.get("type") == "file" and item["name"].endswith(".txt"):
-                content = fetch(gh, repo, f"{hw}/{QUIZ_DIR}/{item['name']}", ref)
-                if content is not None:
-                    files[f"{QUIZ_DIR}/{item['name']}"] = content
+        files: dict[str, bytes] = {}
+        for path in paths:
+            content = fetch(gh, repo, path, ref)
+            if content is not None:
+                files[path[len(hw) + 1:]] = content
 
         # последний коммит студента в папке блока — когда он реально сдавал
         _, mine = gh.get(f"/repos/{repo}/commits?path={q(hw)}&sha={q(ref)}&per_page=100")
@@ -433,10 +447,11 @@ def main() -> int:
     p.add_argument("--students", type=Path, required=True, help="CSV с ФИО и GitHub-логинами")
     p.add_argument("--org", help="организация, например rl-course-misis")
     p.add_argument("--prefix", default="rl", help="репозитории <prefix>-<логин> (по умолчанию rl)")
-    p.add_argument("--template", help="create: шаблон, по умолчанию <org>/rl-template")
+    p.add_argument("--template", help="create: шаблон, по умолчанию <org>/<prefix>-template")
     p.add_argument("--block", type=int, help="issue/status/collect: номер блока")
-    p.add_argument("--source", help="issue: каталог блока с homework.ipynb, например homeworks/hw1")
+    p.add_argument("--source", help="issue: каталог блока с homework.ipynb (homeworks/hw1) или сам ноутбук (homeworks/hw03.ipynb)")
     p.add_argument("--group", help="create/issue: группа для личного кода квизов (положить МОЙ_КОД_ДЛЯ_КВИЗОВ.txt)")
+    p.add_argument("--quiz-url", default=QUIZ_URL, help="create/issue: страница квизов для файла с личным кодом")
     p.add_argument("--weeks", help="issue: недели квизов через запятую, по умолчанию 2N-1,2N")
     p.add_argument("--into", help="collect: куда складывать работы")
     p.add_argument("--before", help="collect: взять последний коммит не позже этого момента (ISO 8601)")
