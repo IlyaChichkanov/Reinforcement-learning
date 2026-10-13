@@ -18,8 +18,6 @@ GitHub Classroom закрыт (сайт и API отключены 28 авгус�
 4. Раз в час `course-admin` сам забирает работы текущего блока в `blockN/<логин>/`. Токен есть только в `course-admin`, в репозиториях студентов его нет.
 5. Проверка: подключить `course-admin` к сессии Claude Code и попросить «проверь блок 1». Оценки и комментарии появятся в `block1/grades.csv` и `block1/<логин>/feedback.md`.
 
-Та же схема для другого курса — [`NEW_COURSE.md`](NEW_COURSE.md).
-
 Логика — в [`../tools/student_repos.py`](../tools/student_repos.py) (`check`, `create`, `issue`, `status`, `collect`), workflow в `course-admin` вызывают его.
 
 ## Один раз
