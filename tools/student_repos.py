@@ -138,6 +138,35 @@ def code_file(s: Student, codes: dict[str, str], url: str = QUIZ_URL) -> dict[st
     return {CODE_FILE: CODE_TEXT.format(code=codes[key], url=url).encode()} if key in codes else {}
 
 
+def tree_paths(gh: "GitHub", repo: str, ref: str = "HEAD") -> set[str] | None:
+    status, tree = gh.get(f"/repos/{repo}/git/trees/{q(ref)}?recursive=1")
+    if status != 200 or not isinstance(tree, dict):
+        return None
+    return {t["path"] for t in tree.get("tree", []) if t.get("type") == "blob"}
+
+
+def template_landed(gh: "GitHub", repo: str, template_files: set[str]) -> bool:
+    """Пришло ли в репозиторий содержимое шаблона.
+
+    GitHub копирует шаблон асинхронно: коммит «Initial commit» иногда приходит через час
+    после создания репозитория и заменяет всё дерево содержимым шаблона. Всё, что положено
+    раньше, пропадает (так 13.10 у пятерых студентов пропал hw1/). Поэтому писать в репозиторий
+    можно, только когда в нём уже есть все файлы шаблона.
+    """
+    paths = tree_paths(gh, repo)
+    return paths is not None and template_files <= paths
+
+
+def wait_template(gh: "GitHub", repo: str, template_files: set[str], seconds: int) -> bool:
+    deadline = time.monotonic() + seconds
+    while True:
+        if template_landed(gh, repo, template_files):
+            return True
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(3)
+
+
 def put_missing(gh: "GitHub", repo: str, files: dict[str, bytes], message: str) -> tuple[list[str], list[str], list[str]]:
     """Положить файлы, которых ещё нет. (добавлено, уже было, ошибки)."""
     put, kept, errs = [], [], []
@@ -238,6 +267,9 @@ def cmd_create(gh: GitHub, students: list[Student], args) -> int:
             sys.exit(fail(f"шаблон {template} недоступен", status, data))
         if not data.get("is_template"):
             sys.exit(f"{template} не отмечен как Template repository (Settings → General)")
+        template_files = tree_paths(gh, template) or set()
+        if not template_files:
+            sys.exit(f"{template}: шаблон пустой или недоступен")
 
     codes = quiz_codes(args.students, args.group) if args.group else None
     created = existing = invited = errors = 0
@@ -291,6 +323,9 @@ def cmd_create(gh: GitHub, students: list[Student], args) -> int:
             extra = code_file(s, codes, args.quiz_url)
             if not extra:
                 print(f"            нет личного кода для «{s.name}»")
+            elif not wait_template(gh, repo, template_files, args.template_wait):
+                print("            шаблон ещё копируется — личный код положит «Выдать блок» позже")
+                continue
             _, _, errs = put_missing(gh, repo, extra, "Личный код для квизов")
             for e in errs:
                 errors += 1
@@ -329,7 +364,11 @@ def cmd_issue(gh: GitHub, students: list[Student], args) -> int:
     codes = quiz_codes(args.students, args.group) if args.group else None
     message = ISSUE_MESSAGE.format(block=args.block)
     print("Файлы блока: " + ", ".join(files) + (f", {CODE_FILE}" if codes is not None else "") + "\n")
-    added = errors = 0
+    template = args.template or f"{args.org}/{args.prefix}-template"
+    template_files = set() if gh.dry_run else (tree_paths(gh, template) or set())
+    if not gh.dry_run and not template_files:
+        sys.exit(f"{template}: шаблон пустой или недоступен — не с чем сверить готовность репозиториев")
+    added = errors = not_ready = 0
     for s in students:
         repo = s.repo(args.org, args.prefix)
         if gh.dry_run:
@@ -339,6 +378,10 @@ def cmd_issue(gh: GitHub, students: list[Student], args) -> int:
         if status != 200:
             errors += 1
             print(f"  НЕТ РЕПО  {repo} — сначала «Создать репозитории студентов»")
+            continue
+        if not template_landed(gh, repo, template_files):
+            not_ready += 1
+            print(f"  {s.login:24} НЕ ГОТОВ: шаблон ещё копируется — запустите «Выдать блок» ещё раз позже")
             continue
         mine = dict(files)
         if codes is not None:
@@ -355,8 +398,9 @@ def cmd_issue(gh: GitHub, students: list[Student], args) -> int:
     if gh.dry_run:
         print("\nПробный запуск — ничего не выдано. Запустите без dry_run.")
     else:
-        print(f"\nДобавлено файлов: {added}, ошибок {errors}.")
-    return 1 if errors else 0
+        print(f"\nДобавлено файлов: {added}, ошибок {errors}"
+              + (f", не готовы {not_ready} — повторите позже" if not_ready else "") + ".")
+    return 1 if errors or not_ready else 0
 
 
 def cmd_status(gh: GitHub, students: list[Student], args) -> int:
@@ -447,7 +491,9 @@ def main() -> int:
     p.add_argument("--students", type=Path, required=True, help="CSV с ФИО и GitHub-логинами")
     p.add_argument("--org", help="организация, например rl-course-misis")
     p.add_argument("--prefix", default="rl", help="репозитории <prefix>-<логин> (по умолчанию rl)")
-    p.add_argument("--template", help="create: шаблон, по умолчанию <org>/<prefix>-template")
+    p.add_argument("--template", help="create/issue: шаблон, по умолчанию <org>/<prefix>-template")
+    p.add_argument("--template-wait", type=int, default=90,
+                   help="create: сколько секунд ждать копирования шаблона перед записью личного кода")
     p.add_argument("--block", type=int, help="issue/status/collect: номер блока")
     p.add_argument("--source", help="issue: каталог блока с homework.ipynb (homeworks/hw1) или сам ноутбук (homeworks/hw03.ipynb)")
     p.add_argument("--group", help="create/issue: группа для личного кода квизов (положить МОЙ_КОД_ДЛЯ_КВИЗОВ.txt)")
