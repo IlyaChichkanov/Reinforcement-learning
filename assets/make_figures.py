@@ -1808,43 +1808,6 @@ def cliff_rules():
     plt.close(fig)
 
 
-def reward_relay():
-    """Эстафета награды: за каждый проход по цепочке знание о +1 отступает на одно обновление назад (α = 1 для наглядности)."""
-    gamma = 0.9
-    labels = ["$s_1$", "$s_2$", "$s_3$", "G"]
-    passes = [["0", "0", "+1", "+1"],
-              ["0", f"+{gamma:.1f}", "+1", "+1"],
-              [f"+{gamma**2:.2f}", f"+{gamma:.1f}", "+1", "+1"]]
-    fresh = [2, 1, 0]                                  # какая клетка обновилась на этом проходе
-
-    fig, ax = plt.subplots(figsize=(9.5, 4.6))
-    ax.set_xlim(0, 9.5)
-    ax.set_ylim(0, 4.6)
-    ax.axis("off")
-    for row, (vals, new) in enumerate(zip(passes, fresh)):
-        y = 3.5 - row * 1.25
-        ax.text(0.1, y, f"проход {row + 1}", ha="left", va="center", fontsize=13, color=C_GREY, weight="bold")
-        for i, (name, v) in enumerate(zip(labels, vals)):
-            x = 2.45 + i * 1.9
-            color = C_ENV if name == "G" else (C_ACCENT if i == new else C_GREY)
-            face = "#e7f2e7" if name == "G" else "white"
-            ax.add_patch(FancyBboxPatch((x - 0.72, y - 0.42), 1.44, 0.84,
-                                        boxstyle="round,pad=0.02,rounding_size=0.06",
-                                        facecolor=face, edgecolor=color, linewidth=2.6 if i == new else 1.6))
-            ax.text(x, y + 0.16, name, ha="center", va="center", fontsize=13, color=C_TEXT)
-            ax.text(x, y - 0.17, "награда +1" if name == "G" else f"$Q$ = {v}",
-                    ha="center", va="center", fontsize=12.5,
-                    color=C_ACCENT if i == new else C_TEXT, weight="bold" if i == new else "normal")
-            if i < 3:
-                _arrow(ax, (x + 0.76, y), (x + 1.14, y), C_GREY, lw=1.6)
-    ax.text(5.0, 4.35, "эпизоды идут по цепочке $s_1 \\to s_2 \\to s_3 \\to$ G;  награда одна — на входе в G",
-            ha="center", va="center", fontsize=13, color=C_TEXT)
-    ax.text(4.85, 0.25, "цель $r + \\gamma\\, Q(s\\,',a\\,')$ ненулевая только рядом со знанием: "
-                        "за проход оно отступает на шаг назад (здесь $\\alpha = 1$, $\\gamma = 0.9$)",
-            ha="center", va="center", fontsize=12.5, color=C_ACCENT, weight="bold")
-    fig.savefig(OUT / "reward_relay.png", dpi=DPI, bbox_inches="tight", pad_inches=0.2)
-    plt.close(fig)
-
 
 def td_loss():
     """То же обновление, что на update_shift, но как шаг спуска по параболе ошибки (цель − Q)²."""
@@ -1914,6 +1877,6 @@ if __name__ == "__main__":
                value_meaning, values_four_cases, where_we_average, q_four_cases, q_where_we_average, pe_update,
                recap_week2, model_vs_sample, running_mean, mc_vs_td, backup_diagrams, vi_vs_q_learning, eps_greedy,
                sarsa_vs_q, on_off_policy, value_based_map,
-               ql_recap, update_shift, cliff_rules, max_bias, reward_relay, td_loss):
+               ql_recap, update_shift, cliff_rules, max_bias, td_loss):
         fn()
         print("saved", fn.__name__)
