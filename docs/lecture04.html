@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Прогулка по обрыву</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=PT+Sans:wght@400;700&family=PT+Serif:wght@700&family=PT+Mono&display=swap">
+<style>
+/* Макет: один столбец до 1060px; вкладки «Вопросы» и «Песочница»; крупная типографика для проектора. */
+:root {
+  --bg: #faf8f5;        /* тёплая бумага */
+  --surface: #ffffff;
+  --fg: #27231d;
+  --muted: #776f63;
+  --line: #e4ded4;
+  --accent: #c44e52;    /* акцент курса */
+  --ql: #4C72B0;        /* Q-learning */
+  --sarsa: #DD8452;     /* SARSA */
+  --good: #2e7d32;
+  --good-bg: #e4f2e5;
+  --bar: #d8d2c6;
+  --cliff: #f3a9a9;
+  --goal: #a9dfa9;
+  --cell: #ffffff;
+  --cell-line: #c9c3b8;
+  --start: #eceae5;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #1c1a17; --surface: #262320; --fg: #ece7de; --muted: #a39a8b;
+  --line: #3a362f; --accent: #e07478; --ql: #5b8dd6; --sarsa: #d96f38;
+  --good: #7fc983; --good-bg: #27402a; --bar: #45413a;
+  --cliff: #6e3434; --goal: #2f5d33; --cell: #262320; --cell-line: #4a453d; --start: #343129;
+  color-scheme: dark;
+} }
+:root[data-theme="dark"] {
+  --bg: #1c1a17; --surface: #262320; --fg: #ece7de; --muted: #a39a8b;
+  --line: #3a362f; --accent: #e07478; --ql: #5b8dd6; --sarsa: #d96f38;
+  --good: #7fc983; --good-bg: #27402a; --bar: #45413a;
+  --cliff: #6e3434; --goal: #2f5d33; --cell: #262320; --cell-line: #4a453d; --start: #343129;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--fg);
+  font-family: "PT Sans", "Segoe UI", system-ui, sans-serif;
+  font-size: 17px; line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 48px;
+}
+.wrap { max-width: 1060px; margin: 0 auto; }
+header.top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; padding-block: 22px 6px; }
+h1 { font-family: "PT Serif", Georgia, serif; font-size: clamp(24px, 3.4vw, 34px); margin: 0; text-wrap: balance; }
+.sub { color: var(--muted); font-size: 15px; }
+nav.tabs { display: flex; gap: 8px; margin: 14px 0 20px; border-bottom: 1px solid var(--line); }
+nav.tabs button {
+  appearance: none; background: none; border: none; border-bottom: 3px solid transparent;
+  font: inherit; font-weight: 700; color: var(--muted); padding: 8px 14px 10px; cursor: pointer;
+}
+nav.tabs button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); }
+nav.tabs button:focus-visible, button:focus-visible, input:focus-visible, a:focus-visible
+  { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ---------- Вопросы ---------- */
+.qnav { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+.qnav button {
+  font: inherit; font-weight: 700; border: 1px solid var(--line); background: var(--surface);
+  color: var(--muted); border-radius: 8px; padding: 6px 12px; cursor: pointer;
+}
+.qnav button[aria-selected="true"] { color: var(--fg); border-color: var(--accent); }
+.q-topic { color: var(--muted); font-size: 15px; letter-spacing: 0.04em; text-transform: uppercase; }
+.q-text { font-family: "PT Serif", Georgia, serif; font-size: clamp(21px, 2.9vw, 32px); line-height: 1.3;
+  margin: 6px 0 20px; text-wrap: balance; }
+.opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px; }
+.opt {
+  display: flex; align-items: center; gap: 14px; text-align: left;
+  font: inherit; font-size: clamp(17px, 2vw, 22px);
+  background: var(--surface); color: var(--fg);
+  border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; cursor: pointer;
+}
+.opt .letter {
+  flex: none; width: 2em; height: 2em; display: grid; place-items: center;
+  border-radius: 50%; background: var(--bar); font-weight: 700; font-size: 0.9em;
+}
+.opt[data-picked="1"] { border-color: var(--ql); box-shadow: inset 0 0 0 1px var(--ql); }
+.opt[data-picked="1"] .letter { background: var(--ql); color: #fff; }
+.revealed .opt[data-correct="1"] { border-color: var(--good); background: var(--good-bg); }
+.revealed .opt[data-correct="1"] .letter { background: var(--good); color: #fff; }
+.verdict { min-height: 1.5em; margin: 14px 0 4px; font-weight: 700; }
+.explain { color: var(--muted); max-width: 46em; margin: 0; }
+.qactions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 18px; }
+.btn {
+  font: inherit; font-weight: 700; cursor: pointer;
+  border: 1px solid var(--line); border-radius: 8px;
+  background: var(--surface); color: var(--fg); padding: 9px 16px;
+}
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.hint { color: var(--muted); font-size: 15px; }
+
+/* счётчик рук */
+details.counter { margin-top: 26px; border-top: 1px solid var(--line); padding-top: 12px; }
+details.counter > summary { cursor: pointer; font-weight: 700; color: var(--muted); }
+.count-grid { display: grid; grid-template-columns: auto 1fr; gap: 10px 14px; align-items: center; margin-top: 14px; }
+.count-ctl { display: flex; align-items: center; gap: 6px; }
+.count-ctl input {
+  width: 4.2em; font: inherit; font-family: "PT Mono", monospace; text-align: center;
+  background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; padding: 5px;
+}
+.count-ctl button { font: inherit; font-weight: 700; width: 2.2em; height: 2.2em; border-radius: 6px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--fg); cursor: pointer; }
+.bar-row { min-width: 0; display: flex; align-items: center; gap: 10px; }
+.bar-track { flex: 1; min-width: 0; height: 26px; border-radius: 4px; background: none; position: relative; }
+.bar-fill { position: absolute; inset: 0 auto 0 0; width: 0%; border-radius: 4px; background: var(--bar);
+  transition: width 0.25s; }
+.revealed .bar-fill[data-correct="1"] { background: var(--good); }
+.bar-num { font-family: "PT Mono", monospace; font-variant-numeric: tabular-nums; min-width: 2.5em; }
+
+/* ---------- Песочница ---------- */
+.sand-controls { display: flex; flex-wrap: wrap; gap: 18px 28px; align-items: end; margin-bottom: 18px; }
+.ctl { display: grid; gap: 4px; }
+.ctl label { font-size: 15px; color: var(--muted); font-weight: 700; }
+.ctl output { font-family: "PT Mono", monospace; }
+.ctl input[type="range"] { width: 180px; accent-color: var(--accent); }
+.sand-note { color: var(--muted); font-size: 15px; max-width: 46em; margin: 0 0 16px; }
+.boards { display: grid; gap: 22px; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); align-items: start; }
+@media (max-width: 760px) { .boards { grid-template-columns: 1fr; } }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; min-width: 0; }
+.panel h3 { margin: 0 0 10px; font-size: 16px; }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 10px; font-size: 15px; }
+.legend .swatch { display: inline-block; width: 14px; height: 4px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+.stats { display: grid; grid-template-columns: auto 1fr 1fr; gap: 6px 14px; margin-top: 12px;
+  font-size: 15px; font-variant-numeric: tabular-nums; }
+.stats .h { color: var(--muted); font-weight: 700; }
+.stats .ql { color: var(--ql); font-weight: 700; }
+.stats .sarsa { color: var(--sarsa); font-weight: 700; }
+svg text { fill: var(--fg); font-family: "PT Sans", system-ui, sans-serif; }
+svg .mut { fill: var(--muted); }
+footer { margin-top: 44px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--line); padding-top: 14px; }
+footer a { color: inherit; }
+@media (prefers-reduced-motion: reduce) { .bar-fill { transition: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <h1>Прогулка по обрыву</h1>
+  <span class="sub">лекция 4 · курс RL, МИСИС · Q-learning против SARSA</span>
+</header>
+
+<nav class="tabs" role="tablist">
+  <button role="tab" id="tab-q" aria-selected="true" data-tab="questions">Вопросы</button>
+  <button role="tab" id="tab-s" aria-selected="false" data-tab="sandbox">Песочница</button>
+</nav>
+
+<!-- ================= ВОПРОСЫ ================= -->
+<section id="view-questions">
+  <div class="qnav" id="qnav" role="tablist" aria-label="Вопросы"></div>
+
+  <div id="qcard">
+    <div class="q-topic" id="q-topic"></div>
+    <p class="q-text" id="q-text"></p>
+    <div class="opts" id="q-opts"></div>
+    <p class="verdict" id="q-verdict"></p>
+    <p class="explain" id="q-explain" hidden></p>
+    <div class="qactions">
+      <button class="btn primary" id="q-reveal">Показать ответ</button>
+      <button class="btn" id="q-reset" title="Сбросить мой выбор и счётчик">Сбросить</button>
+      <span class="hint">Выберите вариант, проголосуйте в зале — потом открывайте ответ.</span>
+    </div>
+
+    <details class="counter" id="q-counter">
+      <summary>Счётчик рук (для ведущего)</summary>
+      <div class="count-grid" id="count-grid"></div>
+    </details>
+  </div>
+</section>
+
+<!-- ================= ПЕСОЧНИЦА ================= -->
+<section id="view-sandbox" hidden>
+  <p class="sand-note">
+    Среда Cliff Walking: каждый шаг — награда −1, срыв — −100 и возврат на старт.
+    Оба агента учатся 2000 эпизодов по одним и тем же правилам, различие — только цель обновления:
+    Q-learning подставляет <em>r</em> + max<sub><em>a′</em></sub> <em>Q</em>(<em>s′</em>, <em>a′</em>),
+    SARSA — <em>r</em> + <em>Q</em>(<em>s′</em>, <em>a′</em>) для действия, которое агент действительно сделает.
+    Подвигайте ε — посмотрите, куда смещаются пути.
+  </p>
+  <div class="sand-controls">
+    <div class="ctl">
+      <label for="eps">ε — доля случайных шагов: <output id="eps-out">0.10</output></label>
+      <input type="range" id="eps" min="0" max="0.5" step="0.01" value="0.1">
+    </div>
+    <div class="ctl">
+      <label for="alpha">α — шаг обучения: <output id="alpha-out">0.50</output></label>
+      <input type="range" id="alpha" min="0.05" max="1" step="0.05" value="0.5">
+    </div>
+    <button class="btn" id="retrain">Переобучить (новый случай)</button>
+  </div>
+
+  <div class="boards">
+    <div class="panel">
+      <h3>Жадные пути после обучения</h3>
+      <svg id="grid-svg" viewBox="0 0 740 300" role="img" aria-label="Карта Cliff Walking с путями двух агентов"></svg>
+      <div class="legend">
+        <span><span class="swatch" style="background:var(--ql)"></span>Q-learning: <span id="st-ql-path">—</span></span>
+        <span><span class="swatch" style="background:var(--sarsa)"></span>SARSA: <span id="st-sarsa-path">—</span></span>
+      </div>
+    </div>
+    <div class="panel">
+      <h3>Return за эпизод во время обучения</h3>
+      <svg id="curve-svg" viewBox="0 0 440 260" role="img" aria-label="Кривые обучения двух агентов"></svg>
+      <div class="stats">
+        <span class="h"></span><span class="ql">Q-learning</span><span class="sarsa">SARSA</span>
+        <span class="h">срывов за обучение</span><span id="st-ql-falls">—</span><span id="st-sarsa-falls">—</span>
+        <span class="h">return, последние 100 эп.</span><span id="st-ql-ret">—</span><span id="st-sarsa-ret">—</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  Страница работает без интернета после загрузки и ничего никуда не отправляет.
+  Материалы курса — в <a href="https://github.com/IlyaChichkanov/Reinforcement-learning">репозитории</a>,
+  квизы — на <a href="index.html">главной</a>.
+</footer>
+
+</div>
+
+<script>
+"use strict";
+/* ---------------- данные вопросов ---------------- */
+const QUESTIONS = [
+  { id: "q1", topic: "Разминка · жадный выбор",
+    text: "Агент стоит в клетке s. Строка таблицы: Q(s,←) = +0.10, Q(s,↓) = −1.00, Q(s,→) = +0.20, Q(s,↑) = +0.40. Куда пойдёт жадная стратегия?",
+    options: ["←", "↓", "→", "↑"], answer: 3,
+    explain: "Жадная стратегия берёт argmax по строке таблицы: наибольшее из четырёх чисел — +0.40 — у действия ↑." },
+  { id: "q2", topic: "Разминка · одно обновление",
+    text: "Оценка Q(s,a) = 0.30, цель этого шага — 0.50, α = 0.1. Какой станет оценка после одного обновления?",
+    options: ["0.50", "0.32", "0.48", "0.38"], answer: 1,
+    explain: "Новая оценка = старая + α · (цель − старая) = 0.30 + 0.1 · (0.50 − 0.30) = 0.32: сдвиг к цели на десятую часть расстояния." },
+  { id: "q3", topic: "Разминка · ε-жадность",
+    text: "ε = 0.2, действий четыре, лучшее по таблице — ↑. С какой вероятностью ε-жадный агент шагнёт ↑?",
+    options: ["0.80", "0.85", "0.20", "0.95"], answer: 1,
+    explain: "С вероятностью 0.8 агент берёт лучшее действие, и ещё случайный выбор попадает на «вправо» с вероятностью 0.2 / 4 = 0.05. Итого 0.85." },
+  { id: "q4", topic: "Новая среда",
+    text: "Cliff Walking: каждый шаг — награда −1, срыв с обрыва — −100. Какой наибольший return вообще возможен в этой среде?",
+    options: ["−17", "−13", "0", "−1"], answer: 1,
+    explain: "Кратчайший путь от S до G идёт вдоль края обрыва и занимает 13 шагов, по −1 за шаг: return −13. Короче не бывает, а даром не пускают." },
+  { id: "q5", topic: "Главный вопрос лекции",
+    text: "Оба агента учатся ε-жадно с ε = 0.1 — иногда делают случайный шаг. Какой путь выучит каждый?",
+    options: ["Оба — вдоль края", "Оба — в обход",
+              "Q-learning — вдоль края, SARSA — в обход", "Q-learning — в обход, SARSA — вдоль края"],
+    answer: 2,
+    explain: "Q-learning учит ценность жадной стратегии, которая не оступается, — и идёт по краю. SARSA учит ценность своей ε-жадной стратегии вместе с её случайными шагами — и уходит от края." },
+  { id: "q6", topic: "Эксперимент",
+    text: "Переучим SARSA с ε = 0.01 вместо 0.1 (и α = 0.1, чтобы оценки успели сойтись). Куда сместится его путь?",
+    options: ["Ещё выше, подальше от края", "Ближе к краю", "Не изменится", "Перестанет доходить до G"], answer: 1,
+    explain: "Случайные шаги почти исчезли, и осторожность почти ничего не экономит: путь спускается с верхнего ряда на средний — 15 шагов вместо 17. Проверьте в песочнице: ε = 0.01, α = 0.1." },
+  { id: "q7", topic: "Завышающий максимум",
+    text: "Десять игровых автоматов, у всех средний выигрыш ровно 0. Сыграли на каждом по 10 раз и взяли автомат с лучшей оценкой. Его оценка в среднем…",
+    options: ["≈ 0", "заметно больше 0", "меньше 0", "ровно 0"], answer: 1,
+    explain: "Каждая оценка шумит вокруг нуля, и среди десяти всегда найдётся «везунчик»: максимум шумных оценок систематически завышен (в среднем около +0.5). На этом ломается и max в цели Q-learning." },
+];
+const LETTERS = ["A", "B", "C", "D"];
+
+/* локальное хранение (личное удобство: мой ответ и счётчик) */
+const store = {
+  get(k, d) { try { const v = localStorage.getItem("l04:" + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem("l04:" + k, JSON.stringify(v)); } catch {} },
+};
+
+let qIndex = 0;
+let revealed = {};
+const $ = (id) => document.getElementById(id);
+
+function renderQnav() {
+  const nav = $("qnav");
+  nav.innerHTML = "";
+  QUESTIONS.forEach((q, i) => {
+    const b = document.createElement("button");
+    b.textContent = i + 1;
+    b.setAttribute("role", "tab");
+    b.setAttribute("aria-selected", i === qIndex ? "true" : "false");
+    b.setAttribute("aria-label", "Вопрос " + (i + 1));
+    b.addEventListener("click", () => { qIndex = i; renderQuestion(); });
+    nav.appendChild(b);
+  });
+}
+
+function counts(q) { return store.get("cnt:" + q.id, [0, 0, 0, 0]); }
+
+function renderQuestion() {
+  renderQnav();
+  const q = QUESTIONS[qIndex];
+  const isRevealed = !!revealed[q.id];
+  $("q-topic").textContent = "Вопрос " + (qIndex + 1) + " из " + QUESTIONS.length + " · " + q.topic;
+  $("q-text").textContent = q.text;
+  $("qcard").classList.toggle("revealed", isRevealed);
+
+  const picked = store.get("pick:" + q.id, null);
+  const opts = $("q-opts");
+  opts.innerHTML = "";
+  q.options.forEach((text, i) => {
+    const b = document.createElement("button");
+    b.className = "opt";
+    b.dataset.picked = picked === i ? "1" : "0";
+    b.dataset.correct = q.answer === i ? "1" : "0";
+    b.innerHTML = '<span class="letter">' + LETTERS[i] + "</span><span></span>";
+    b.lastChild.textContent = text;
+    b.addEventListener("click", () => {
+      store.set("pick:" + q.id, i);
+      renderQuestion();
+    });
+    opts.appendChild(b);
+  });
+
+  const verdict = $("q-verdict");
+  if (isRevealed) {
+    const ok = picked === q.answer;
+    verdict.textContent = picked === null
+      ? "Ответ: " + LETTERS[q.answer]
+      : (ok ? "✓ Верно: " + LETTERS[q.answer] : "✗ Ваш выбор — " + LETTERS[picked] + ", верный ответ — " + LETTERS[q.answer]);
+    verdict.style.color = picked === null ? "" : (ok ? "var(--good)" : "var(--accent)");
+  } else {
+    verdict.textContent = picked === null ? "" : "Ваш выбор: " + LETTERS[picked];
+    verdict.style.color = "";
+  }
+  $("q-explain").hidden = !isRevealed;
+  $("q-explain").textContent = q.explain;
+  $("q-reveal").textContent = isRevealed ? "Скрыть ответ" : "Показать ответ";
+
+  renderCounter();
+}
+
+function renderCounter() {
+  const q = QUESTIONS[qIndex];
+  const grid = $("count-grid");
+  const cnt = counts(q);
+  const total = cnt.reduce((a, b) => a + b, 0);
+  const max = Math.max(1, ...cnt);
+  grid.innerHTML = "";
+  q.options.forEach((_, i) => {
+    const ctl = document.createElement("div");
+    ctl.className = "count-ctl";
+    const minus = document.createElement("button"); minus.textContent = "−";
+    minus.setAttribute("aria-label", "Минус один за " + LETTERS[i]);
+    const input = document.createElement("input");
+    input.type = "number"; input.min = 0; input.max = 999; input.value = cnt[i];
+    input.id = "cnt-" + q.id + "-" + i;
+    input.setAttribute("aria-label", "Голосов за " + LETTERS[i]);
+    const plus = document.createElement("button"); plus.textContent = "+";
+    plus.setAttribute("aria-label", "Плюс один за " + LETTERS[i]);
+    const save = (v) => { const c = counts(q); c[i] = Math.max(0, v | 0); store.set("cnt:" + q.id, c); renderCounter(); };
+    minus.addEventListener("click", () => save(counts(q)[i] - 1));
+    plus.addEventListener("click", () => save(counts(q)[i] + 1));
+    input.addEventListener("change", () => save(+input.value));
+    ctl.append(minus, input, plus);
+
+    const row = document.createElement("div");
+    row.className = "bar-row";
+    const letter = document.createElement("strong"); letter.textContent = LETTERS[i];
+    const track = document.createElement("div"); track.className = "bar-track";
+    const fill = document.createElement("div"); fill.className = "bar-fill";
+    fill.dataset.correct = q.answer === i ? "1" : "0";
+    fill.style.width = (cnt[i] / max * 100) + "%";
+    track.appendChild(fill);
+    const num = document.createElement("span"); num.className = "bar-num";
+    num.textContent = total ? cnt[i] + " · " + Math.round(cnt[i] / total * 100) + "%" : "0";
+    row.append(letter, track, num);
+    grid.append(ctl, row);
+  });
+}
+
+$("q-reveal").addEventListener("click", () => {
+  const q = QUESTIONS[qIndex];
+  revealed[q.id] = !revealed[q.id];
+  renderQuestion();
+});
+$("q-reset").addEventListener("click", () => {
+  const q = QUESTIONS[qIndex];
+  store.set("pick:" + q.id, null);
+  store.set("cnt:" + q.id, [0, 0, 0, 0]);
+  revealed[q.id] = false;
+  renderQuestion();
+});
+
+/* ---------------- песочница ---------------- */
+const ROWS = 4, COLS = 12, START = 36, GOAL = 47;
+const CLIFF = new Set(); for (let c = 1; c <= 10; c++) CLIFF.add(36 + c);
+
+function mulberry32(seed) {
+  let a = seed | 0;
+  return function () {
+    a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+function envStep(s, a) {                              // 0 ↑, 1 →, 2 ↓, 3 ←
+  const d = [[-1, 0], [0, 1], [1, 0], [0, -1]][a];
+  const r = Math.min(ROWS - 1, Math.max(0, Math.floor(s / COLS) + d[0]));
+  const c = Math.min(COLS - 1, Math.max(0, s % COLS + d[1]));
+  const s2 = r * COLS + c;
+  if (CLIFF.has(s2)) return [START, -100, false];
+  return [s2, -1, s2 === GOAL];
+}
+
+function argmaxRandom(row, rnd) {
+  const m = Math.max(...row);
+  const best = []; row.forEach((v, i) => { if (v === m) best.push(i); });
+  return best[Math.floor(rnd() * best.length)];
+}
+
+const N_EP = 2000;
+function train(kind, eps, alpha, seed) {
+  const rnd = mulberry32(seed);
+  const Q = Array.from({ length: ROWS * COLS }, () => [0, 0, 0, 0]);
+  const pick = (s) => rnd() < eps ? Math.floor(rnd() * 4) : argmaxRandom(Q[s], rnd);
+  const returns = []; let falls = 0;
+  for (let ep = 0; ep < N_EP; ep++) {
+    let s = START, a = pick(s), total = 0;
+    for (let t = 0; t < 500; t++) {
+      const [s2, r, done] = envStep(s, a);
+      if (r === -100) falls++;
+      const a2 = pick(s2);
+      const future = done ? 0 : (kind === "q" ? Math.max(...Q[s2]) : Q[s2][a2]);
+      Q[s][a] += alpha * (r + future - Q[s][a]);      // γ = 1: эпизод конечный
+      total += r; s = s2; a = a2;
+      if (done) break;
+    }
+    returns.push(total);
+  }
+  return { Q, returns, falls };
+}
+
+function greedyPath(Q) {
+  let s = START; const path = [s];
+  for (let t = 0; t < 60 && s !== GOAL; t++) {
+    const a = Q[s].indexOf(Math.max(...Q[s]));
+    s = envStep(s, a)[0];
+    path.push(s);
+  }
+  return path;
+}
+
+function smooth(xs, w) {
+  const out = [];
+  for (let i = 0; i + w <= xs.length; i++) {
+    let sum = 0; for (let j = 0; j < w; j++) sum += xs[i + j];
+    out.push(sum / w);
+  }
+  return out;
+}
+
+const SVGNS = "http://www.w3.org/2000/svg";
+function el(tag, attrs, parent) {
+  const node = document.createElementNS(SVGNS, tag);
+  for (const k in attrs) node.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(node);
+  return node;
+}
+
+function drawGrid(paths) {
+  const svg = $("grid-svg");
+  svg.innerHTML = "";
+  const cs = 60, x0 = 10, y0 = 10;                    // клетка 60 единиц viewBox
+  for (let s = 0; s < ROWS * COLS; s++) {
+    const r = Math.floor(s / COLS), c = s % COLS;
+    const fill = CLIFF.has(s) ? "var(--cliff)" : s === GOAL ? "var(--goal)" : s === START ? "var(--start)" : "var(--cell)";
+    el("rect", { x: x0 + c * cs, y: y0 + r * cs, width: cs, height: cs,
+      fill, stroke: "var(--cell-line)", "stroke-width": 1 }, svg);
+  }
+  const label = (cell, text) => {
+    const r = Math.floor(cell / COLS), c = cell % COLS;
+    const t = el("text", { x: x0 + c * cs + cs / 2, y: y0 + r * cs + cs / 2 + 7,
+      "text-anchor": "middle", "font-size": 22, "font-weight": "bold" }, $("grid-svg"));
+    t.textContent = text;
+  };
+  label(START, "S"); label(GOAL, "G");
+  const warn = el("text", { x: x0 + 6 * cs, y: y0 + 3.5 * cs + 6, "text-anchor": "middle",
+    "font-size": 15, class: "mut" }, svg);
+  warn.textContent = "обрыв: −100 и на старт";
+  paths.forEach(({ cells, color }, i) => {
+    const shift = (i - 0.5) * 9;
+    const pts = cells.map((s) => {
+      const r = Math.floor(s / COLS), c = s % COLS;
+      return (x0 + c * cs + cs / 2 + shift) + "," + (y0 + r * cs + cs / 2 + shift);
+    }).join(" ");
+    el("polyline", { points: pts, fill: "none", stroke: color, "stroke-width": 5,
+      "stroke-linejoin": "round", "stroke-linecap": "round", opacity: 0.9 }, svg);
+  });
+}
+
+function drawCurves(series) {
+  const svg = $("curve-svg");
+  svg.innerHTML = "";
+  const L = 46, R = 10, T = 12, B = 34, W = 440, H = 260;
+  const ymin = -120, ymax = 0;
+  const x = (i, n) => L + i / Math.max(1, n - 1) * (W - L - R);
+  const y = (v) => T + (ymax - Math.max(ymin, v)) / (ymax - ymin) * (H - T - B);
+  [0, -40, -80, -120].forEach((v) => {
+    el("line", { x1: L, x2: W - R, y1: y(v), y2: y(v), stroke: "var(--line)", "stroke-width": 1 }, svg);
+    const t = el("text", { x: L - 7, y: y(v) + 4, "text-anchor": "end", "font-size": 12, class: "mut" }, svg);
+    t.textContent = v;
+  });
+  [[0, "start"], [N_EP / 2, "middle"], [N_EP, "end"]].forEach(([ep, anchor]) => {
+    const t = el("text", { x: L + ep / N_EP * (W - L - R), y: H - B + 18, "text-anchor": anchor, "font-size": 12, class: "mut" }, svg);
+    t.textContent = ep;
+  });
+  const cap = el("text", { x: (L + W - R) / 2, y: H - 4, "text-anchor": "middle", "font-size": 12, class: "mut" }, svg);
+  cap.textContent = "эпизод (сглажено окном 50)";
+  series.forEach(({ data, color }) => {
+    const pts = data.map((v, i) => x(i, data.length) + "," + y(v)).join(" ");
+    el("polyline", { points: pts, fill: "none", stroke: color, "stroke-width": 2 }, svg);
+  });
+}
+
+let seed = 2;
+function runSandbox() {
+  const eps = +$("eps").value, alpha = +$("alpha").value;
+  $("eps-out").textContent = eps.toFixed(2);
+  $("alpha-out").textContent = alpha.toFixed(2);
+  const runs = { q: train("q", eps, alpha, seed), s: train("s", eps, alpha, seed + 1000) };
+  const paths = { q: greedyPath(runs.q.Q), s: greedyPath(runs.s.Q) };
+  const colors = getComputedStyle(document.documentElement);
+  drawGrid([
+    { cells: paths.q, color: colors.getPropertyValue("--ql").trim() || "#4C72B0" },
+    { cells: paths.s, color: colors.getPropertyValue("--sarsa").trim() || "#DD8452" },
+  ]);
+  drawCurves([
+    { data: smooth(runs.q.returns, 50), color: colors.getPropertyValue("--ql").trim() || "#4C72B0" },
+    { data: smooth(runs.s.returns, 50), color: colors.getPropertyValue("--sarsa").trim() || "#DD8452" },
+  ]);
+  const last100 = (xs) => xs.slice(-100).reduce((a, b) => a + b, 0) / 100;
+  const pathText = (p) => p[p.length - 1] === GOAL ? (p.length - 1) + " шагов" : "до G не доходит";
+  $("st-ql-path").textContent = pathText(paths.q);
+  $("st-sarsa-path").textContent = pathText(paths.s);
+  $("st-ql-falls").textContent = runs.q.falls;
+  $("st-sarsa-falls").textContent = runs.s.falls;
+  $("st-ql-ret").textContent = last100(runs.q.returns).toFixed(1);
+  $("st-sarsa-ret").textContent = last100(runs.s.returns).toFixed(1);
+}
+$("eps").addEventListener("change", runSandbox);
+$("alpha").addEventListener("change", runSandbox);
+$("eps").addEventListener("input", () => { $("eps-out").textContent = (+$("eps").value).toFixed(2); });
+$("alpha").addEventListener("input", () => { $("alpha-out").textContent = (+$("alpha").value).toFixed(2); });
+$("retrain").addEventListener("click", () => { seed += 1; runSandbox(); });
+
+/* ---------------- вкладки ---------------- */
+document.querySelectorAll("nav.tabs button").forEach((b) => {
+  b.addEventListener("click", () => {
+    document.querySelectorAll("nav.tabs button").forEach((x) => x.setAttribute("aria-selected", x === b ? "true" : "false"));
+    $("view-questions").hidden = b.dataset.tab !== "questions";
+    $("view-sandbox").hidden = b.dataset.tab !== "sandbox";
+    if (b.dataset.tab === "sandbox") runSandbox();
+  });
+});
+if (location.hash === "#sandbox") document.getElementById("tab-s").click();
+
+renderQuestion();
+runSandbox();
+</script>
+</body>
+</html>

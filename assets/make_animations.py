@@ -326,6 +326,117 @@ ALL.update({"vi_wave": vi_wave, "eval_vs_mc": eval_vs_mc,
             "improve_loop": improve_loop, "wind_sweep": wind_sweep})
 
 
+# --------------------------------------------------------------------------- лекция 4: обрыв
+sys.path.insert(0, str(ROOT / "03-value-based" / "lecture"))
+from td_plots import draw_cliff, greedy_path, CLIFF_COLS, CLIFF_GOAL, CLIFF_START  # noqa: E402
+
+C_REWARD = "#DD8452"
+
+
+def _cliff_intended(s, a):
+    """Куда ведёт действие a из клетки s (без правила обрыва) — чтобы показать клетку падения."""
+    r, c = divmod(s, CLIFF_COLS)
+    dr, dc = {0: (-1, 0), 1: (0, 1), 2: (1, 0), 3: (0, -1)}[a]   # up, right, down, left
+    return (min(max(r + dr, 0), 3)) * CLIFF_COLS + min(max(c + dc, 0), CLIFF_COLS - 1)
+
+
+def cliff_fall():
+    """Случайная стратегия на обрыве: каждый шаг −1, срыв — это −100 и возврат на старт, эпизод продолжается."""
+    env = gym.make("CliffWalking-v1")
+    rng = np.random.default_rng(0)                     # в этом эпизоде срывы на шагах 4, 5 и 21
+    s, _ = env.reset(seed=0)
+    log = [(s, None, 0.0)]                             # (где агент, клетка срыва или None, набрано всего)
+    total = 0.0
+    for _ in range(26):
+        a = int(rng.integers(4))
+        s_next, r, *_ = env.step(a)
+        total += r
+        log.append((s_next, _cliff_intended(s, a) if r == -100 else None, total))
+        s = s_next
+
+    fig, ax = plt.subplots(figsize=(8, 3.4))
+
+    def frame(k):
+        ax.clear()
+        draw_cliff(ax=ax)
+        trail = [c for c, _, _ in log[max(0, k - 5):k + 1]]
+        pts = np.array([divmod(c, CLIFF_COLS) for c in trail], float) + 0.5
+        ax.plot(pts[:, 1], pts[:, 0], "-", lw=2, color=C_AGENT, alpha=0.35)
+        cell, fell, total = log[k]
+        r, c = divmod(cell, CLIFF_COLS)
+        ax.add_patch(Circle((c + 0.5, r + 0.5), 0.3, color=C_AGENT, zorder=5))
+        if fell is not None:
+            fr, fc = divmod(fell, CLIFF_COLS)
+            ax.plot([fc + 0.5], [fr + 0.5], "x", ms=16, mew=4, color=C_ACCENT, zorder=6)
+            ax.set_title(f"шаг {k}: сорвался! −100 и обратно на старт      набрано: {total:+.0f}",
+                         fontsize=12, color=C_ACCENT)
+        else:
+            ax.set_title(f"случайные действия, шаг {k}: каждый шаг −1      набрано: {total:+.0f}",
+                         fontsize=12)
+
+    _save(FuncAnimation(fig, frame, frames=len(log), interval=600), "cliff_fall", fps=1.7)
+    plt.close(fig)
+
+
+def _td_cliff(kind, checkpoints, seed=2, n_episodes=500, alpha=0.5, eps=0.1):
+    """Q-learning или SARSA на обрыве, как td_control в лекции; копии Q на контрольных эпизодах."""
+    env = gym.make("CliffWalking-v1")
+    rng = np.random.default_rng(seed)
+    Q = np.zeros((env.observation_space.n, env.action_space.n))
+
+    def eps_greedy(s):
+        if rng.random() < eps:
+            return int(rng.integers(Q.shape[1]))
+        return int(rng.choice(np.flatnonzero(Q[s] == Q[s].max())))
+
+    snaps = {}
+    for episode in range(1, n_episodes + 1):
+        s, _ = env.reset(seed=int(rng.integers(1_000_000)))
+        a = eps_greedy(s)
+        for _ in range(500):
+            s_next, r, terminated, truncated, _ = env.step(a)
+            a_next = eps_greedy(s_next)
+            future = Q[s_next].max() if kind == "q-learning" else Q[s_next, a_next]
+            Q[s, a] += alpha * (r + (0.0 if terminated else future) - Q[s, a])
+            s, a = s_next, a_next
+            if terminated or truncated:
+                break
+        if episode in checkpoints:
+            snaps[episode] = Q.copy()
+    return snaps
+
+
+def cliff_learn():
+    """Как меняются жадные пути по ходу обучения: Q-learning прижимается к краю, SARSA уходит наверх."""
+    checkpoints = [1, 3, 5, 10, 20, 35, 60, 100, 160, 250, 375, 500]
+    snaps = {"Q-learning": _td_cliff("q-learning", checkpoints),
+             "SARSA": _td_cliff("sarsa", checkpoints)}
+    colors = {"Q-learning": C_AGENT, "SARSA": C_REWARD}
+
+    fig, ax = plt.subplots(figsize=(8, 3.6))
+
+    def frame(k):
+        ep = checkpoints[k]
+        ax.clear()
+        draw_cliff(ax=ax)
+        for i, (name, ss) in enumerate(snaps.items()):
+            path = greedy_path(ss[ep])
+            done = path[-1] == CLIFF_GOAL
+            pts = np.array([divmod(c, CLIFF_COLS) for c in path], float) + 0.5
+            shift = (i - 0.5) * 0.14
+            label = f"{name}: {len(path) - 1} шагов" if done else f"{name}: до G пока не доходит"
+            ax.plot(pts[:, 1] + shift, pts[:, 0] + shift, "-o" if done else "--o", ms=3.5, lw=2.6,
+                    color=colors[name], label=label, alpha=1.0 if done else 0.75)
+        ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.02), ncol=2, frameon=False, fontsize=10)
+        ax.set_title(f"жадный путь после {ep} эпизодов обучения (ε = 0.1)", fontsize=12)
+
+    _save(FuncAnimation(fig, frame, frames=len(checkpoints), interval=900), "cliff_learn", fps=1.1)
+    plt.close(fig)
+
+
+ALL.update({"cliff_fall": cliff_fall, "cliff_learn": cliff_learn})
+
+
 if __name__ == "__main__":
     names = sys.argv[1:] or list(ALL)
     for n in names:
