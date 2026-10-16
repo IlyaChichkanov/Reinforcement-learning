@@ -437,6 +437,70 @@ def cliff_learn():
 ALL.update({"cliff_fall": cliff_fall, "cliff_learn": cliff_learn})
 
 
+# --------------------------------------------------------------------------- семинар 4: такси
+sys.path.insert(0, str(ROOT / "04-sarsa" / "seminar"))
+from taxi_plots import make_taxi, draw_taxi, play_episode  # noqa: E402
+
+
+def _taxi_frames(name, states, rewards, head, fps=1.6):
+    """Общий покадровый прогон эпизода такси: карта + счёт в заголовке."""
+    env = make_taxi()
+    fig, ax = plt.subplots(figsize=(5.2, 5.4))
+
+    def frame(k):
+        ax.clear()
+        draw_taxi(env, states[k], ax=ax)
+        total = sum(rewards[:k])
+        note = f"   награда шага {rewards[k - 1]:+d}" if k else ""
+        ax.set_title(f"{head}\nшаг {k}: набрано {total:+d}{note}", fontsize=11)
+
+    _save(FuncAnimation(fig, frame, frames=len(states), interval=600), name, fps=fps)
+    plt.close(fig)
+
+
+def taxi_random():
+    """Случайный таксист: −1 за каждый шаг и −10 за посадку/высадку не там."""
+    env = make_taxi()
+    states, actions, rewards = play_episode(env, None, seed=6, max_steps=22)
+    _taxi_frames("taxi_random", states, rewards, "случайные действия: −1 за шаг, −10 за посадку не там")
+
+
+def _q_taxi(seed=0, n_episodes=2000, alpha=0.3, eps=0.1):
+    """Q-learning на такси — как train из семинара, только без записи returns."""
+    env = make_taxi()
+    rng = np.random.default_rng(seed)
+    Q = np.zeros((env.observation_space.n, env.action_space.n))
+
+    def eps_greedy(s):
+        if rng.random() < eps:
+            return int(rng.integers(Q.shape[1]))
+        return int(rng.choice(np.flatnonzero(Q[s] == Q[s].max())))
+
+    for _ in range(n_episodes):
+        s, _ = env.reset(seed=int(rng.integers(1_000_000)))
+        a = eps_greedy(s)
+        for t in range(200):
+            s2, r, terminated, truncated, _ = env.step(a)
+            a2 = eps_greedy(s2)
+            Q[s, a] += alpha * (r + (0.0 if terminated else Q[s2].max()) - Q[s, a])
+            s, a = s2, a2
+            if terminated or truncated:
+                break
+    return Q
+
+
+def taxi_trained():
+    """Обученный таксист: подъехал — взял (машина зеленеет) — довёз до звезды (+20)."""
+    env = make_taxi()
+    Q = _q_taxi()
+    states, actions, rewards = play_episode(env, Q, seed=0)
+    _taxi_frames("taxi_trained", states, rewards,
+                 "Q-learning, 2000 эпизодов: взял — довёз", fps=1.4)
+
+
+ALL.update({"taxi_random": taxi_random, "taxi_trained": taxi_trained})
+
+
 if __name__ == "__main__":
     names = sys.argv[1:] or list(ALL)
     for n in names:

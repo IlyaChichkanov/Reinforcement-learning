@@ -36,7 +36,7 @@
 <td>4</td>
 <td>20.10</td>
 <td>Основные алгоритмы RL: SARSA, on-policy и off-policy</td>
-<td><a href="04-sarsa/lecture/lecture.ipynb">лекция</a> · <a href="https://ilyachichkanov.github.io/Reinforcement-learning/lecture04.html">страница с вопросами и песочницей</a> · <a href="https://ilyachichkanov.github.io/Reinforcement-learning/">квиз</a></td>
+<td><a href="04-sarsa/lecture/lecture.ipynb">лекция</a> · <a href="04-sarsa/seminar/seminar.ipynb">семинар</a> · <a href="https://ilyachichkanov.github.io/Reinforcement-learning/lecture04.html">страница с вопросами и песочницей</a> · <a href="https://ilyachichkanov.github.io/Reinforcement-learning/">квиз</a></td>
 </tr>
 <tr>
 <td>5</td>
