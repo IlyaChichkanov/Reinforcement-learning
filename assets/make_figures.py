@@ -1565,14 +1565,14 @@ def backup_diagrams():
     plt.close(fig)
 
 
-def vi_vs_q_learning():
+def vi_vs_q_learning(tag_q="сегодня: Q-learning", out_name="vi_vs_q_learning.png"):
     """Value iteration и Q-learning: та же цель из уравнения Беллмана, но среднее по исходам заменено одной попыткой."""
     fig, ax = plt.subplots(figsize=(13.5, 5.6))
     ax.set_xlim(0, 13.5); ax.set_ylim(0, 5.6); ax.axis("off")
     target = "$r + \\gamma\\, \\max_{a'}\\, Q(s', a')$"
     rows = [(4.05, C_ENV, "лекция 2: value iteration", "$Q(s,a) \\;\\leftarrow\\; \\sum_{s'} p(s'|s,a)\\,[$", "$]$",
              "нужна модель: среднее по всем $s'$ с весами $p$"),
-            (1.85, C_AGENT, "сегодня: Q-learning", "$Q(s,a) \\;\\leftarrow\\; Q(s,a) + \\alpha\\,[$",
+            (1.85, C_AGENT, tag_q, "$Q(s,a) \\;\\leftarrow\\; Q(s,a) + \\alpha\\,[$",
              "$-\\; Q(s,a)\\,]$", "модель не нужна: $(s, a, r, s')$ — один переход из env.step,\n"
                                      "сдвигаемся к цели на долю $\\alpha$ (среднее на ходу)")]
     for y, color, tag, prefix, suffix, note in rows:
@@ -1588,7 +1588,7 @@ def vi_vs_q_learning():
     _arrow(ax, (7.97, 4.98), (7.97, 4.5), C_REWARD, lw=1.6)
     ax.text(6.75, 0.25, "Q-learning — это value iteration, где среднее по исходам заменено средним по попыткам",
             ha="center", va="center", fontsize=12.5, color=C_ACCENT, weight="bold")
-    fig.savefig(OUT / "vi_vs_q_learning.png", dpi=DPI, bbox_inches="tight", pad_inches=0.2)
+    fig.savefig(OUT / out_name, dpi=DPI, bbox_inches="tight", pad_inches=0.2)
     plt.close(fig)
 
 
@@ -1725,12 +1725,125 @@ def value_based_map():
     plt.close(fig)
 
 
+# ---- лекция 4: SARSA и прогулка по обрыву --------------------------------------------------------
+
+
+def ql_recap():
+    """Та же пара формул, что открывала Q-learning в лекции 3, с подписью-повторением для лекции 4."""
+    vi_vs_q_learning(tag_q="лекция 3: Q-learning", out_name="ql_recap.png")
+
+
+def update_shift():
+    """Одно обновление на числовой прямой: старая оценка сдвигается к цели на долю α."""
+    old, target, alpha = 0.30, 0.50, 0.1
+    new = old + alpha * (target - old)
+
+    fig, ax = plt.subplots(figsize=(9.5, 3.0))
+    ax.set_xlim(0.22, 0.60)
+    ax.set_ylim(-0.9, 1.6)
+    ax.axis("off")
+    ax.axhline(0, color=C_GREY, lw=1.5, zorder=1)
+    for x in (0.25, 0.35, 0.40, 0.45, 0.55):
+        ax.plot([x, x], [-0.05, 0.05], color=C_GREY, lw=1)
+        ax.text(x, -0.28, f"{x:.2f}", ha="center", va="top", fontsize=12, color=C_GREY)
+
+    ax.plot([old], [0], "o", ms=13, color=C_AGENT, zorder=3)
+    ax.text(old, 0.62, f"старая оценка\n$Q = {old:.2f}$", ha="center", va="bottom", fontsize=13,
+            color=C_AGENT, weight="bold")
+    ax.plot([target], [0], "o", ms=13, color=C_REWARD, zorder=3)
+    ax.text(target, 0.62, f"цель\n$r + \\gamma\\, Q(s',a') = {target:.2f}$", ha="center", va="bottom",
+            fontsize=13, color=C_REWARD, weight="bold")
+
+    _arrow(ax, (old, -0.52), (target, -0.52), C_GREY, rad=0.0, lw=1.5)
+    ax.text((old + target) / 2, -0.78, "до цели: $0.50 - 0.30 = 0.20$", ha="center", va="top",
+            fontsize=12, color=C_GREY)
+    _arrow(ax, (old, 0.3), (new, 0.08), C_ACCENT, rad=-0.45, lw=3)
+    ax.plot([new], [0], "o", ms=9, color=C_ACCENT, zorder=4)
+    ax.text(new + 0.004, 0.30, f"новая: ${new:.2f}$\nшаг $\\alpha \\cdot 0.20 = 0.02$",
+            ha="left", va="bottom", fontsize=13, color=C_ACCENT, weight="bold")
+
+    ax.text(0.41, 1.5, "$Q \\;\\leftarrow\\; Q + \\alpha\\,(\\mathrm{цель} - Q)$"
+            "$\\;=\\; 0.30 + 0.1 \\cdot (0.50 - 0.30) \\;=\\; 0.32$",
+            ha="center", va="top", fontsize=15, color=C_TEXT)
+    fig.savefig(OUT / "update_shift.png", dpi=DPI, bbox_inches="tight", pad_inches=0.2)
+    plt.close(fig)
+
+
+def _cliff_grid(ax):
+    """Поле Cliff Walking 4 × 12 в тех же цветах, что draw_cliff из лекции."""
+    rows, cols, goal = 4, 12, 47
+    cliff = set(range(37, 47))
+    ax.set_xlim(0, cols)
+    ax.set_ylim(rows, 0)
+    ax.set_aspect("equal")
+    ax.set_xticks([])
+    ax.set_yticks([])
+    for s in range(rows * cols):
+        r, c = divmod(s, cols)
+        color = "#f3a9a9" if s in cliff else "#a9dfa9" if s == goal else "#f2f2f2" if s == 36 else "white"
+        ax.add_patch(Rectangle((c, r), 1, 1, facecolor=color, edgecolor="#aaaaaa", lw=0.6))
+    ax.text(0.5, 3.5, "S", ha="center", va="center", fontsize=14, weight="bold", color="#444444")
+    ax.text(11.5, 3.5, "G", ha="center", va="center", fontsize=14, weight="bold", color="#2f6b2f")
+
+
+def cliff_rules():
+    """Правила обрыва и два пути-кандидата: короткий вдоль края (−13) и обход поверху (−17)."""
+    edge = [36, 24] + list(range(25, 36)) + [47]                  # вдоль края: 13 шагов
+    detour = [36, 24, 12] + list(range(0, 12)) + [23, 35, 47]     # поверху: 17 шагов
+
+    fig, ax = plt.subplots(figsize=(10.5, 4.6))
+    _cliff_grid(ax)
+    ax.text(6.0, 3.5, "обрыв: награда $-100$ и возврат на старт", ha="center", va="center",
+            fontsize=12, color="#9b2f2f")
+    for i, (states, color, label) in enumerate(
+            [(edge, C_AGENT, "вдоль края: 13 шагов, return $-13$"),
+             (detour, C_REWARD, "в обход: 17 шагов, return $-17$")]):
+        pts = np.array([divmod(s, 12) for s in states], float) + 0.5
+        shift = (i - 0.5) * 0.16
+        ax.plot(pts[:, 1] + shift, pts[:, 0] + shift, "-o", ms=4, lw=2.8, color=color, label=label)
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.03), ncol=2, frameon=False, fontsize=12)
+    ax.set_title("каждый шаг: награда $-1$  →  чем короче путь до G, тем больше return",
+                 fontsize=13, pad=10)
+    fig.savefig(OUT / "cliff_rules.png", dpi=DPI, bbox_inches="tight", pad_inches=0.2)
+    plt.close(fig)
+
+
+def max_bias():
+    """Десять автоматов с истинным средним 0: максимум шумных оценок оказывается заметно выше нуля."""
+    rng = np.random.default_rng(11)                    # типичный запуск: максимум близок к своему матожиданию ≈ +0.49
+    wins = rng.normal(0, 1, size=(10, 10))             # 10 автоматов × 10 игр, истинное среднее у всех 0
+    est = wins.mean(axis=1)
+    best = int(est.argmax())
+
+    fig, ax = plt.subplots(figsize=(9.5, 3.8))
+    ax.axhline(0, color=C_ENV, ls="--", lw=2)
+    ax.text(10.45, 0.02, "истинное среднее\nкаждого автомата: 0", ha="left", va="center",
+            fontsize=12, color=C_ENV)
+    ax.plot(np.arange(1, 11), est, "o", ms=10, color=C_GREY)
+    ax.plot([best + 1], [est[best]], "o", ms=13, color=C_ACCENT, zorder=3)
+    ax.annotate(f'«лучший» автомат:\nоценка ${est[best]:+.2f}$, истина $0$',
+                xy=(best + 1, est[best]), xytext=(best - 2.2, est[best] + 0.45),
+                fontsize=13, color=C_ACCENT, weight="bold",
+                arrowprops=dict(arrowstyle="-|>", color=C_ACCENT, lw=2))
+    ax.set_xticks(np.arange(1, 11))
+    ax.set_xlabel("игровой автомат", fontsize=12)
+    ax.set_ylabel("оценка: среднее 10 игр", fontsize=12)
+    ax.set_ylim(-1.0, 1.25)
+    ax.set_xlim(0.3, 13.2)
+    ax.tick_params(labelsize=11)
+    ax.grid(alpha=0.3)
+    ax.set_title("сыграли на каждом по 10 раз — у кого-то оценка случайно завысилась", fontsize=13)
+    fig.savefig(OUT / "max_bias.png", dpi=DPI, bbox_inches="tight", pad_inches=0.2)
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     for fn in (agent_env_loop, ml_paradigms, rl_timeline, rl_origins, rl_taxonomy, mdp_gridworld, course_map, markov_chain, cem_loop,
                env_anatomy, wrapper_onion, reward_types, observation_vs_state, action_spaces, policy_types,
                return_recursion, gridworld_rules, from_episodes_to_steps, q_choice, v_vs_q, v_q_link, pi_star_collapse, bellman_substitution, two_equations, vi_update, policy_iteration_loop, lottery_mdp, bellman_family,
                value_meaning, values_four_cases, where_we_average, q_four_cases, q_where_we_average, pe_update,
                recap_week2, model_vs_sample, running_mean, mc_vs_td, backup_diagrams, vi_vs_q_learning, eps_greedy,
-               sarsa_vs_q, on_off_policy, value_based_map):
+               sarsa_vs_q, on_off_policy, value_based_map,
+               ql_recap, update_shift, cliff_rules, max_bias):
         fn()
         print("saved", fn.__name__)
