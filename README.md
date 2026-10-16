@@ -34,78 +34,84 @@
 </tr>
 <tr>
 <td>4</td>
+<td>20.10</td>
+<td>Основные алгоритмы RL: SARSA, on-policy и off-policy</td>
+<td><a href="04-sarsa/lecture/lecture.ipynb">лекция</a> · <a href="https://ilyachichkanov.github.io/Reinforcement-learning/lecture04.html">страница с вопросами и песочницей</a> · <a href="https://ilyachichkanov.github.io/Reinforcement-learning/">квиз</a></td>
+</tr>
+<tr>
+<td>5</td>
 <td>22.09</td>
 <td>Основные алгоритмы RL: policy based</td>
 <td></td>
 </tr>
 <tr>
-<td>5</td>
+<td>6</td>
 <td>29.09</td>
 <td>Введение в Deep Reinforcement Learning</td>
 <td></td>
 </tr>
 <tr>
-<td>6</td>
+<td>7</td>
 <td>06.10</td>
 <td>Deep Q-Network (DQN)</td>
 <td></td>
 </tr>
 <tr>
-<td>7</td>
+<td>8</td>
 <td>13.10</td>
 <td>Deep Policy Gradient (PG)</td>
 <td></td>
 </tr>
 <tr>
-<td>8</td>
+<td>9</td>
 <td>20.10</td>
 <td>Actor-Critic</td>
 <td></td>
 </tr>
 <tr>
-<td>9</td>
+<td>10</td>
 <td>27.10</td>
 <td>TRPO → PPO</td>
 <td></td>
 </tr>
 <tr>
-<td>10</td>
+<td>11</td>
 <td>03.11</td>
 <td>DDPG → TD3 → LSTM-TD3</td>
 <td></td>
 </tr>
 <tr>
-<td>11</td>
+<td>12</td>
 <td>10.11</td>
 <td>Model-based RL, часть 1</td>
 <td></td>
 </tr>
 <tr>
-<td>12</td>
+<td>13</td>
 <td>17.11</td>
 <td>Model-based RL, часть 2</td>
 <td></td>
 </tr>
 <tr>
-<td>13</td>
+<td>14</td>
 <td>24.11</td>
 <td>Иерархическое обучение с подкреплением</td>
 <td></td>
 </tr>
 <tr>
-<td>14</td>
+<td>15</td>
 <td>01.12</td>
 <td>Выбор темы и организация проектной работы</td>
 <td></td>
 </tr>
 <tr>
-<td>15</td>
+<td>16</td>
 <td>08.12</td>
 <td>Многоагентное обучение и кооперация агентов</td>
 <td></td>
 </tr>
 <tr>
-<td>16</td>
+<td>17</td>
 <td>15.12</td>
 <td>Трансформеры в RL: decision transformers и action transformers. Защита проектов</td>
 <td></td>
