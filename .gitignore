@@ -5,6 +5,9 @@ __pycache__/
 *.pyc
 .DS_Store
 
+# решения домашек — не в публичный репозиторий (solutions/README.md)
+solutions/hw/
+
 # списки студентов и собранные работы — не в публичный репозиторий
 roster.csv
 collected/

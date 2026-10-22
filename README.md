@@ -36,7 +36,7 @@
 <td>4</td>
 <td>20.10</td>
 <td>Основные алгоритмы RL: SARSA, on-policy и off-policy</td>
-<td><a href="04-sarsa/lecture/lecture.ipynb">лекция</a> · <a href="04-sarsa/seminar/seminar.ipynb">семинар</a> · <a href="https://ilyachichkanov.github.io/Reinforcement-learning/lecture04.html">страница с вопросами и песочницей</a> · <a href="https://ilyachichkanov.github.io/Reinforcement-learning/">квиз</a></td>
+<td><a href="04-sarsa/lecture/lecture.ipynb">лекция</a> · <a href="04-sarsa/seminar/seminar.ipynb">семинар</a> · <a href="https://ilyachichkanov.github.io/Reinforcement-learning/lecture04.html">страница с вопросами и песочницей</a> · <a href="homeworks/hw2/homework.ipynb">дз блока 2</a> · <a href="https://ilyachichkanov.github.io/Reinforcement-learning/">квиз</a></td>
 </tr>
 <tr>
 <td>5</td>
@@ -130,7 +130,7 @@
 
 ### Домашние задания
 
-Домашка выдаётся **раз в две недели** и охватывает обе лекции блока: [`homeworks/hw1/homework.ipynb`](homeworks/hw1/homework.ipynb) — по лекциям 1–2 (Cross-Entropy, оценка политики, своя среда, уравнения Беллмана). Часть проверок оформлена как `assert`, чтобы можно было проверить себя локально. Как сдавать — в [`homeworks/README.md`](homeworks/README.md).
+Домашка выдаётся **раз в две недели** и охватывает обе лекции блока: [`homeworks/hw1/homework.ipynb`](homeworks/hw1/homework.ipynb) — по лекциям 1–2 (Cross-Entropy, оценка политики, своя среда, уравнения Беллмана). [`homeworks/hw2/homework.ipynb`](homeworks/hw2/homework.ipynb) — по лекциям 3–4 (Q-learning и SARSA на озере, такси по чужому логу, Expected SARSA, горная машина на сетке). Часть проверок оформлена как `assert`, чтобы можно было проверить себя локально. Как сдавать — в [`homeworks/README.md`](homeworks/README.md).
 
 Задачи семинаров — репетиция домашки: те же функции на знакомой среде. Решения семинаров лежат в [`solutions/`](solutions/).
 
