@@ -1,13 +1,15 @@
-"""Обвязка для домашки блока 2: модель среды из Gymnasium, лог такси, горная машина на сетке.
+"""Обвязка для домашки блока 2: озеро со случайным стартом, модель среды из Gymnasium, лог такси, горная машина на сетке.
 
 Ничего содержательного здесь нет — только numpy, matplotlib и обвязка Gymnasium.
 Читать не нужно, сигнатуры полезно знать (все рисовальщики принимают ``ax=None`` и возвращают ``ax``):
 
+    make_lake(random_start=False)                 # FrozenLake 8×8 без скольжения; random_start — эпизод из случайной клетки
     P, R, terminal = mdp_from_gym(env)            # модель P[s, a, s'], R[s, a] из env.unwrapped.P
     success_rate_greedy(env, Q, n_episodes=200, seed=0)   # доля эпизодов, где argmax Q дошёл до награды
-    greedy_path(env, Q, max_steps=100)            # состояния жадного пути из старта (среда без случайности)
     log = collect_random_log(env, n_episodes=3000, seed=0, max_steps=200)   # пятёрки (s, a, r, s', a', done)
-    plot_learning_curves(curves, ax=None, title="", w=50)  # {имя: массив return'ов} сглаженно
+    animate_taxi(env, states, rewards=None, fps=3)  # GIF жадного проезда по списку состояний (показать: display(...))
+    plot_learning_curves(curves, ax=None, title="", w=50, ylabel=None)  # {имя: массив по эпизодам} сглаженно
+    plot_vs(x, curves, xlabel, ylabel, ax=None, title="", logx=False)  # {имя: значения} против x — метрика против параметра
     make_mountain_car()                           # MountainCar-v0 с лимитом 200 шагов
     greedy_episode(env, Q, discretize, seed=0, max_steps=200)   # -> (positions, reached)
     plot_value_grid(Q, env, ax=None, title="")    # тепловая карта max_a Q по сетке позиция × скорость
@@ -18,6 +20,34 @@ import matplotlib.pyplot as plt
 import gymnasium as gym
 
 C_AGENT, C_ENV, C_REWARD, C_ACCENT, C_GREY = "#4C72B0", "#55A868", "#DD8452", "#C44E52", "#888888"
+
+
+# ---------- озеро 8×8 ----------
+
+class RandomStart(gym.Wrapper):
+    """Каждый эпизод начинается в случайной нетерминальной клетке, а не в углу."""
+
+    def __init__(self, env):
+        super().__init__(env)
+        desc = env.unwrapped.desc
+        flat = "".join(row.tobytes().decode() if hasattr(row, "tobytes") else "".join(c.decode() for c in row)
+                       for row in desc)
+        self.start_cells = np.array([i for i, ch in enumerate(flat) if ch in "SF"])
+        self._rng = np.random.default_rng(0)
+
+    def reset(self, seed=None, options=None):
+        _, info = self.env.reset(seed=seed)
+        if seed is not None:
+            self._rng = np.random.default_rng(seed)
+        s = int(self._rng.choice(self.start_cells))
+        self.env.unwrapped.s = s
+        return s, info
+
+
+def make_lake(random_start=False):
+    """Озеро 8×8 без скольжения (карта домашки 1); random_start=True — старт в случайной клетке льда."""
+    env = gym.make("FrozenLake-v1", map_name="8x8", is_slippery=False)
+    return RandomStart(env) if random_start else env
 
 
 # ---------- модель табличной среды Gymnasium ----------
@@ -58,16 +88,6 @@ def success_rate_greedy(env, Q, n_episodes=200, seed=0, max_steps=100):
     return hits / n_episodes
 
 
-def greedy_path(env, Q, max_steps=100):
-    """Состояния жадного пути argmax Q из стартового состояния; для сред без случайности."""
-    s, _ = env.reset(seed=0)
-    path = [s]
-    for _ in range(max_steps):
-        s, _, terminated, truncated, _ = env.step(int(np.argmax(Q[s])))
-        path.append(s)
-        if terminated or truncated:
-            break
-    return path
 
 
 # ---------- лог случайной стратегии ----------
@@ -90,8 +110,8 @@ def collect_random_log(env, n_episodes=3000, seed=0, max_steps=200):
     return log
 
 
-def plot_learning_curves(curves, ax=None, title="", w=50):
-    """Сглаженные скользящим окном w кривые return'ов: {имя: массив}."""
+def plot_learning_curves(curves, ax=None, title="", w=50, ylabel=None):
+    """Сглаженные скользящим окном w кривые по эпизодам: {имя: массив}; ylabel — подпись оси (по умолчанию return)."""
     if ax is None:
         _, ax = plt.subplots(figsize=(7, 3.6))
     for name, values in curves.items():
@@ -99,11 +119,56 @@ def plot_learning_curves(curves, ax=None, title="", w=50):
         smooth = np.convolve(values, np.ones(w) / w, mode="valid")
         ax.plot(np.arange(len(smooth)) + w, smooth, lw=2, label=name)
     ax.set_xlabel("эпизод", fontsize=12)
-    ax.set_ylabel(f"return при обучении (среднее по {w})", fontsize=12)
+    ax.set_ylabel(ylabel or f"return при обучении (среднее по {w})", fontsize=12)
     ax.set_title(title, fontsize=12)
     ax.grid(alpha=0.3)
     ax.legend(fontsize=11)
     return ax
+
+
+def plot_vs(x, curves, xlabel, ylabel, ax=None, title="", logx=False):
+    """Метрика против параметра: {имя: список значений той же длины, что x}, точки соединены линиями."""
+    if ax is None:
+        _, ax = plt.subplots(figsize=(7, 3.6))
+    for name, values in curves.items():
+        ax.plot(x, values, lw=2, marker="o", ms=6, label=name)
+    if logx:
+        ax.set_xscale("log")
+        ax.minorticks_off()
+    ax.set_xticks(list(x))
+    ax.set_xticklabels([str(v) for v in x])
+    ax.set_xlabel(xlabel, fontsize=12)
+    ax.set_ylabel(ylabel, fontsize=12)
+    ax.set_title(title, fontsize=12)
+    ax.grid(alpha=0.3)
+    ax.legend(fontsize=11)
+    return ax
+
+
+# ---------- анимация такси ----------
+
+def animate_taxi(env, states, rewards=None, fps=3, path="taxi_greedy.gif"):
+    """GIF проезда такси по списку состояний (кадр на шаг); возвращает IPython Image — показать через display()."""
+    import io
+    from PIL import Image as PILImage
+    from IPython.display import Image
+    from taxi_plots import draw_taxi
+
+    frames, total = [], 0.0
+    for k, s in enumerate(states):
+        if rewards is not None and k > 0:
+            total += rewards[k - 1]
+        title = f"шаг {k}" + (f", сумма наград {total:+.0f}" if rewards is not None else "")
+        fig, ax = plt.subplots(figsize=(4.6, 4.6))
+        draw_taxi(env, s, ax=ax, title=title)
+        buf = io.BytesIO()
+        fig.savefig(buf, format="png", dpi=72)
+        plt.close(fig)
+        buf.seek(0)
+        frames.append(PILImage.open(buf).convert("P", palette=PILImage.ADAPTIVE))
+    frames[0].save(path, save_all=True, append_images=frames[1:], duration=int(1000 / fps), loop=0)
+    with open(path, "rb") as f:
+        return Image(data=f.read(), format="gif")
 
 
 # ---------- горная машина на сетке ----------
