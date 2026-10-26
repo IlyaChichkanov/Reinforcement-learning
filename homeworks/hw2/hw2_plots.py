@@ -11,6 +11,7 @@
     plot_learning_curves(curves, ax=None, title="", w=50, ylabel=None)  # {имя: массив по эпизодам} сглаженно
     plot_vs(x, curves, xlabel, ylabel, ax=None, title="", logx=False)  # {имя: значения} против x — метрика против параметра
     make_mountain_car()                           # MountainCar-v0 с лимитом 200 шагов
+    discretize = make_discretize(env, bins)       # функция: наблюдение (позиция, скорость) -> пара номеров клеток сетки
     greedy_episode(env, Q, discretize, seed=0, max_steps=200)   # -> (positions, reached)
     plot_value_grid(Q, env, ax=None, title="")    # тепловая карта max_a Q по сетке позиция × скорость
     plot_positions(runs, ax=None, title="")       # {подпись: positions} — позиция машины по шагам
@@ -176,6 +177,16 @@ def animate_taxi(env, states, rewards=None, fps=3, path="taxi_greedy.gif"):
 def make_mountain_car():
     """MountainCar-v0: наблюдение (позиция, скорость), три действия, −1 за шаг, лимит 200 шагов."""
     return gym.make("MountainCar-v0")
+
+
+def make_discretize(env, bins):
+    """Сетка bins × bins по границам среды: возвращает функцию obs -> (номер клетки позиции, номер клетки скорости)."""
+    low, high = env.observation_space.low, env.observation_space.high
+
+    def discretize(obs):
+        idx = ((np.asarray(obs) - low) / (high - low) * bins).astype(int)
+        return tuple(int(i) for i in np.clip(idx, 0, bins - 1))
+    return discretize
 
 
 def greedy_episode(env, Q, discretize, seed=0, max_steps=200):
