@@ -229,7 +229,7 @@ def plot_positions(runs, ax=None, title=""):
     for name, positions in runs.items():
         ax.plot(positions, lw=2, label=name)
     ax.axhline(0.5, color=C_ACCENT, lw=2, ls="--", label="флаг (позиция 0.5)")
-    ax.axhline(-0.5, color=C_GREY, lw=1, ls=":", label="дно долины")
+    ax.axhline(-0.5, color=C_GREY, lw=1, ls=":", label="низшая точка между горками (x = −0.5)")
     ax.set_xlabel("шаг", fontsize=12)
     ax.set_ylabel("позиция", fontsize=12)
     ax.set_title(title, fontsize=12)
