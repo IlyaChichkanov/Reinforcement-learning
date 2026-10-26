@@ -7,7 +7,7 @@
     P, R, terminal = mdp_from_gym(env)            # модель P[s, a, s'], R[s, a] из env.unwrapped.P
     success_rate_greedy(env, Q, n_episodes=200, seed=0)   # доля эпизодов, где argmax Q дошёл до награды
     log = collect_random_log(env, n_episodes=3000, seed=0, max_steps=200)   # пятёрки (s, a, r, s', a', done)
-    animate_taxi(env, states, rewards=None, fps=3)  # GIF жадного проезда по списку состояний (показать: display(...))
+    animate_taxi(env, states, rewards=None, fps=3)  # GIF поездки такси по списку состояний (показать: display(...))
     plot_learning_curves(curves, ax=None, title="", w=50, ylabel=None)  # {имя: массив по эпизодам} сглаженно
     plot_vs(x, curves, xlabel, ylabel, ax=None, title="", logx=False)  # {имя: значения} против x — метрика против параметра
     make_mountain_car()                           # MountainCar-v0 с лимитом 200 шагов
@@ -73,7 +73,7 @@ def mdp_from_gym(env):
 
 
 def success_rate_greedy(env, Q, n_episodes=200, seed=0, max_steps=100):
-    """Доля эпизодов, в которых жадная стратегия argmax Q получила положительную награду."""
+    """Доля эпизодов, в которых стратегия «действие с наибольшим Q» получила положительную награду."""
     rng = np.random.default_rng(seed)
     hits = 0
     for _ in range(n_episodes):
@@ -179,7 +179,7 @@ def make_mountain_car():
 
 
 def greedy_episode(env, Q, discretize, seed=0, max_steps=200):
-    """Один эпизод жадной стратегией по таблице Q на сетке; возвращает позиции по шагам и флаг «доехала»."""
+    """Один эпизод по таблице Q на сетке (действие с наибольшим Q, без случайных шагов); возвращает позиции и флаг «доехала»."""
     obs, _ = env.reset(seed=seed)
     positions, reached = [float(obs[0])], False
     for _ in range(max_steps):
