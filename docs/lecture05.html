@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Градиент стратегии</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=PT+Sans:wght@400;700&family=PT+Serif:wght@700&family=PT+Mono&display=swap">
+<style>
+/* Макет: один столбец до 1060px; вкладки «Вопросы» и «Песочница»; крупная типографика для проектора. */
+:root {
+  --bg: #faf8f5;        /* тёплая бумага */
+  --surface: #ffffff;
+  --fg: #27231d;
+  --muted: #776f63;
+  --line: #e4ded4;
+  --accent: #c44e52;    /* акцент курса */
+  --ql: #4C72B0;        /* «вправо», REINFORCE */
+  --sarsa: #DD8452;     /* худший автомат */
+  --good: #2e7d32;
+  --good-bg: #e4f2e5;
+  --bar: #d8d2c6;
+  --cliff: #f3a9a9;
+  --goal: #a9dfa9;
+  --cell: #ffffff;
+  --cell-line: #c9c3b8;
+  --start: #eceae5;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #1c1a17; --surface: #262320; --fg: #ece7de; --muted: #a39a8b;
+  --line: #3a362f; --accent: #e07478; --ql: #5b8dd6; --sarsa: #d96f38;
+  --good: #7fc983; --good-bg: #27402a; --bar: #45413a;
+  --cliff: #6e3434; --goal: #2f5d33; --cell: #262320; --cell-line: #4a453d; --start: #343129;
+  color-scheme: dark;
+} }
+:root[data-theme="dark"] {
+  --bg: #1c1a17; --surface: #262320; --fg: #ece7de; --muted: #a39a8b;
+  --line: #3a362f; --accent: #e07478; --ql: #5b8dd6; --sarsa: #d96f38;
+  --good: #7fc983; --good-bg: #27402a; --bar: #45413a;
+  --cliff: #6e3434; --goal: #2f5d33; --cell: #262320; --cell-line: #4a453d; --start: #343129;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--fg);
+  font-family: "PT Sans", "Segoe UI", system-ui, sans-serif;
+  font-size: 17px; line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 48px;
+}
+.wrap { max-width: 1060px; margin: 0 auto; }
+header.top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; padding-block: 22px 6px; }
+h1 { font-family: "PT Serif", Georgia, serif; font-size: clamp(24px, 3.4vw, 34px); margin: 0; text-wrap: balance; }
+.sub { color: var(--muted); font-size: 15px; }
+nav.tabs { display: flex; gap: 8px; margin: 14px 0 20px; border-bottom: 1px solid var(--line); }
+nav.tabs button {
+  appearance: none; background: none; border: none; border-bottom: 3px solid transparent;
+  font: inherit; font-weight: 700; color: var(--muted); padding: 8px 14px 10px; cursor: pointer;
+}
+nav.tabs button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); }
+nav.tabs button:focus-visible, button:focus-visible, input:focus-visible, a:focus-visible
+  { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ---------- Вопросы ---------- */
+.qnav { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+.qnav button {
+  font: inherit; font-weight: 700; border: 1px solid var(--line); background: var(--surface);
+  color: var(--muted); border-radius: 8px; padding: 6px 12px; cursor: pointer;
+}
+.qnav button[aria-selected="true"] { color: var(--fg); border-color: var(--accent); }
+.q-topic { color: var(--muted); font-size: 15px; letter-spacing: 0.04em; text-transform: uppercase; }
+.q-text { font-family: "PT Serif", Georgia, serif; font-size: clamp(21px, 2.9vw, 32px); line-height: 1.3;
+  margin: 6px 0 20px; text-wrap: balance; }
+.opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px; }
+.opt {
+  display: flex; align-items: center; gap: 14px; text-align: left;
+  font: inherit; font-size: clamp(17px, 2vw, 22px);
+  background: var(--surface); color: var(--fg);
+  border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; cursor: pointer;
+}
+.opt .letter {
+  flex: none; width: 2em; height: 2em; display: grid; place-items: center;
+  border-radius: 50%; background: var(--bar); font-weight: 700; font-size: 0.9em;
+}
+.opt[data-picked="1"] { border-color: var(--ql); box-shadow: inset 0 0 0 1px var(--ql); }
+.opt[data-picked="1"] .letter { background: var(--ql); color: #fff; }
+.revealed .opt[data-correct="1"] { border-color: var(--good); background: var(--good-bg); }
+.revealed .opt[data-correct="1"] .letter { background: var(--good); color: #fff; }
+.verdict { min-height: 1.5em; margin: 14px 0 4px; font-weight: 700; }
+.explain { color: var(--muted); max-width: 46em; margin: 0; }
+.qactions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 18px; }
+.btn {
+  font: inherit; font-weight: 700; cursor: pointer;
+  border: 1px solid var(--line); border-radius: 8px;
+  background: var(--surface); color: var(--fg); padding: 9px 16px;
+}
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.hint { color: var(--muted); font-size: 15px; }
+
+/* счётчик рук */
+details.counter { margin-top: 26px; border-top: 1px solid var(--line); padding-top: 12px; }
+details.counter > summary { cursor: pointer; font-weight: 700; color: var(--muted); }
+.count-grid { display: grid; grid-template-columns: auto 1fr; gap: 10px 14px; align-items: center; margin-top: 14px; }
+.count-ctl { display: flex; align-items: center; gap: 6px; }
+.count-ctl input {
+  width: 4.2em; font: inherit; font-family: "PT Mono", monospace; text-align: center;
+  background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; padding: 5px;
+}
+.count-ctl button { font: inherit; font-weight: 700; width: 2.2em; height: 2.2em; border-radius: 6px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--fg); cursor: pointer; }
+.bar-row { min-width: 0; display: flex; align-items: center; gap: 10px; }
+.bar-track { flex: 1; min-width: 0; height: 26px; border-radius: 4px; background: none; position: relative; }
+.bar-fill { position: absolute; inset: 0 auto 0 0; width: 0%; border-radius: 4px; background: var(--bar);
+  transition: width 0.25s; }
+.revealed .bar-fill[data-correct="1"] { background: var(--good); }
+.bar-num { font-family: "PT Mono", monospace; font-variant-numeric: tabular-nums; min-width: 2.5em; }
+
+/* ---------- Песочница ---------- */
+.sand-controls { display: flex; flex-wrap: wrap; gap: 18px 28px; align-items: end; margin-bottom: 18px; }
+.ctl { display: grid; gap: 4px; }
+.ctl label { font-size: 15px; color: var(--muted); font-weight: 700; }
+.ctl output { font-family: "PT Mono", monospace; }
+.ctl input[type="range"] { width: 180px; accent-color: var(--accent); }
+.sand-note { color: var(--muted); font-size: 15px; max-width: 46em; margin: 0 0 16px; }
+.boards { display: grid; gap: 22px; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); align-items: start; }
+@media (max-width: 760px) { .boards { grid-template-columns: 1fr; } }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; min-width: 0; }
+.panel h3 { margin: 0 0 10px; font-size: 16px; }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 10px; font-size: 15px; }
+.legend .swatch { display: inline-block; width: 14px; height: 4px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+.stats { display: grid; grid-template-columns: auto 1fr 1fr; gap: 6px 14px; margin-top: 12px;
+  font-size: 15px; font-variant-numeric: tabular-nums; }
+.stats .h { color: var(--muted); font-weight: 700; }
+.stats .ql { color: var(--ql); font-weight: 700; }
+.stats .sarsa { color: var(--sarsa); font-weight: 700; }
+svg text { fill: var(--fg); font-family: "PT Sans", system-ui, sans-serif; }
+svg .mut { fill: var(--muted); }
+footer { margin-top: 44px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--line); padding-top: 14px; }
+footer a { color: inherit; }
+@media (prefers-reduced-motion: reduce) { .bar-fill { transition: none; } }
+/* лекция 5 */
+.sand-block { margin-bottom: 34px; }
+.sand-block h2 { font-family: "PT Serif", Georgia, serif; font-size: 22px; margin: 0 0 8px; }
+.ctl select { font: inherit; background: var(--surface); color: var(--fg); border: 1px solid var(--line);
+  border-radius: 6px; padding: 5px 8px; }
+.check { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; color: var(--fg); cursor: pointer; }
+.check input { width: 1.2em; height: 1.2em; accent-color: var(--accent); }
+.cells { font-family: "PT Mono", monospace; font-size: 15px; overflow-wrap: anywhere; margin: 8px 0 0; }
+.big { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.verdict-bad { color: var(--accent); }
+.verdict-good { color: var(--good); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <h1>Градиент стратегии</h1>
+  <span class="sub">лекция 5 · курс RL, МИСИС · коридор, REINFORCE и вычитание среднего</span>
+</header>
+
+<nav class="tabs" role="tablist">
+  <button role="tab" id="tab-q" aria-selected="true" data-tab="questions">Вопросы</button>
+  <button role="tab" id="tab-s" aria-selected="false" data-tab="sandbox">Песочница</button>
+</nav>
+
+<!-- ================= ВОПРОСЫ ================= -->
+<section id="view-questions">
+  <div class="qnav" id="qnav" role="tablist" aria-label="Вопросы"></div>
+
+  <div id="qcard">
+    <div class="q-topic" id="q-topic"></div>
+    <p class="q-text" id="q-text"></p>
+    <div class="opts" id="q-opts"></div>
+    <p class="verdict" id="q-verdict"></p>
+    <p class="explain" id="q-explain" hidden></p>
+    <div class="qactions">
+      <button class="btn primary" id="q-reveal">Показать ответ</button>
+      <button class="btn" id="q-reset" title="Сбросить мой выбор и счётчик">Сбросить</button>
+      <span class="hint">Выберите вариант, проголосуйте в зале — потом открывайте ответ.</span>
+    </div>
+
+    <details class="counter" id="q-counter">
+      <summary>Счётчик рук (для ведущего)</summary>
+      <div class="count-grid" id="count-grid"></div>
+    </details>
+  </div>
+</section>
+
+<!-- ================= ПЕСОЧНИЦА ================= -->
+<section id="view-sandbox" hidden>
+
+  <div class="sand-block">
+    <h2>Коридор</h2>
+    <p class="sand-note">
+      Три клетки и выход, −1 за каждый шаг. В клетке 1 «вправо» ведёт влево, а «влево» — вправо.
+      Датчик агента клеток не различает, поэтому стратегия — одно число <em>p</em>: вероятность выбрать «вправо».
+      Подвигайте <em>p</em> и сыграйте эпизод; потом обучите REINFORCE с <em>p</em> = 0.05 и посмотрите, куда он придёт.
+    </p>
+    <div class="sand-controls">
+      <div class="ctl">
+        <label for="p">p — вероятность «вправо»: <output id="p-out">0.50</output></label>
+        <input type="range" id="p" min="0.01" max="0.99" step="0.01" value="0.5">
+      </div>
+      <button class="btn" id="play">Сыграть эпизод</button>
+      <button class="btn primary" id="train-pg">Обучить REINFORCE (новый случай)</button>
+    </div>
+    <div class="boards">
+      <div class="panel">
+        <h3>Ценность старта для каждого p</h3>
+        <svg id="curve-svg" viewBox="0 0 440 260" role="img" aria-label="Кривая ценности старта в зависимости от p"></svg>
+      </div>
+      <div class="panel">
+        <h3>При выбранном p</h3>
+        <p>ценность старта: <span class="big" id="p-value">—</span></p>
+        <p class="hint">лучшая: p ≈ 0.586, ценность −11.66</p>
+        <p class="hint" id="pg-note">REINFORCE ещё не запускали.</p>
+        <p class="hint">эпизод (номера клеток):</p>
+        <p class="cells" id="cells">—</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="sand-block">
+    <h2>Три автомата</h2>
+    <p class="sand-note">
+      Автоматы №1, №2, №3 выигрывают в среднем 1, 2 и 3 (шум ±1). REINFORCE делает 2000 попыток:
+      после каждой сдвигает предпочтения на α · вес · (e<sub><em>a</em></sub> − π), вес — выигрыш <em>R</em>
+      или <em>R</em> − <em>b</em>, если вычитаем средний выигрыш <em>b</em>. У каждого телефона — свой случай.
+    </p>
+    <div class="sand-controls">
+      <label class="check"><input type="checkbox" id="shift"> +100 ко всем выигрышам</label>
+      <label class="check"><input type="checkbox" id="baseline"> вычитать среднее</label>
+      <div class="ctl">
+        <label for="alpha">α — шаг</label>
+        <select id="alpha">
+          <option value="0.001">0.001</option><option value="0.003">0.003</option>
+          <option value="0.01" selected>0.01</option><option value="0.03">0.03</option>
+        </select>
+      </div>
+      <button class="btn primary" id="train-bandit">Обучить заново (новый случай)</button>
+    </div>
+    <div class="boards">
+      <div class="panel">
+        <h3>Вероятность каждого автомата по попыткам</h3>
+        <svg id="bandit-svg" viewBox="0 0 440 260" role="img" aria-label="Вероятности трёх автоматов во время обучения"></svg>
+        <div class="legend">
+          <span><span class="swatch" style="background:var(--sarsa)"></span>№1 (худший)</span>
+          <span><span class="swatch" style="background:var(--muted)"></span>№2</span>
+          <span><span class="swatch" style="background:var(--good)"></span>№3 (лучший)</span>
+        </div>
+      </div>
+      <div class="panel">
+        <h3>После 2000 попыток</h3>
+        <p class="big" id="bandit-verdict">—</p>
+        <p class="hint" id="bandit-probs">—</p>
+        <p class="hint">На лекции при +100 без вычитания 8 запусков из 20 закрепились на худшем №1.
+          С вычитанием среднего все 20 нашли №3.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  Страница работает без интернета после загрузки и ничего никуда не отправляет.
+  Материалы курса — в <a href="https://github.com/IlyaChichkanov/Reinforcement-learning">репозитории</a>,
+  квизы — на <a href="index.html">главной</a>.
+</footer>
+
+</div>
+
+<script>
+"use strict";
+/* ---------------- данные вопросов ---------------- */
+const QUESTIONS = [
+  {
+    "id": "q1",
+    "topic": "Разминка · две семьи методов",
+    "text": "Q-learning обучен; строка таблицы в клетке s: Q(s,←) = +0.10, Q(s,↓) = −1.00, Q(s,→) = +0.20, Q(s,↑) = +0.40. С какими вероятностями агент выбирает действия в этой клетке при проверке по таблице?",
+    "options": [
+      "пропорционально Q",
+      "↑ с вероятностью 1, остальные — 0",
+      "↑ с вероятностью 0.85, остальные — по 0.05",
+      "все по 0.25"
+    ],
+    "answer": 1,
+    "explain": "При проверке по таблице агент берёт действие с наибольшим Q, без случайных шагов: ↑ с вероятностью 1. Вариант C — ε-жадный выбор с ε = 0.2: так агент ходит во время обучения. Стратегия Q-learning — стрелка."
+  },
+  {
+    "id": "q2",
+    "topic": "Новая среда · коридор",
+    "text": "Коридор: три клетки, −1 за шаг, в средней клетке «вправо» и «влево» перепутаны, датчик не различает клеток. Какая стратегия в среднем доходит до выхода быстрее всех?",
+    "options": [
+      "всегда «вправо» (p = 1)",
+      "ε-жадная «вправо», ε = 0.1 (p = 0.95)",
+      "монетка (p = 0.5)",
+      "всегда «влево» (p = 0)"
+    ],
+    "answer": 2,
+    "explain": "Монетка — −12, ε-жадная — −44, «всегда вправо» и «всегда влево» не выходят никогда. Чтобы выйти, в клетке 1 нужно «влево», а в клетках 0 и 2 — «вправо»; клеток агент не различает, поэтому нужное действие в клетке 1 может выпасть только случайно. Лучшая стратегия — p ≈ 0.59, ценность −11.7."
+  },
+  {
+    "id": "q3",
+    "topic": "Softmax · шаг по наклону",
+    "text": "Вероятности действий A, B, C — 0.5, 0.3, 0.2; сыграли B. Предпочтения сдвигаем на половину наклона log π(B). Какие вероятности вырастут?",
+    "options": [
+      "только у B",
+      "у B и у A",
+      "у всех трёх",
+      "у B вырастет, у A и C не изменится"
+    ],
+    "answer": 0,
+    "explain": "Наклон log π(B) — это e_B − π = (−0.5, +0.7, −0.2): предпочтение B растёт, у A и C падает на их вероятности. Стало 0.39 / 0.43 / 0.18."
+  },
+  {
+    "id": "q4",
+    "topic": "Три автомата · одна оценка наклона",
+    "text": "Автоматы №1, №2, №3 выигрывают в среднем 1, 2 и 3. Вероятности равные, сыграли №3 и выиграли R = +3. Чему равна оценка наклона R · (e_a − π)?",
+    "options": [
+      "(−1, −1, +2)",
+      "(−0.33, 0, +0.33)",
+      "(0, 0, +3)",
+      "(+1, +1, +1)"
+    ],
+    "answer": 0,
+    "explain": "3 · ((0, 0, 1) − (⅓, ⅓, ⅓)) = (−1, −1, +2). Вариант B — точный наклон: к нему сходится среднее многих оценок, а одна оценка указывает в гору лишь в 39 % случаев."
+  },
+  {
+    "id": "q5",
+    "topic": "REINFORCE в коридоре",
+    "text": "REINFORCE стартует с p = 0.05 (ценность старта −86), шаг α = 0.001, 1000 эпизодов. Где окажется p?",
+    "options": [
+      "около 1",
+      "около 0.95",
+      "около 0.59",
+      "около 0.5"
+    ],
+    "answer": 2,
+    "explain": "Средний шаг REINFORCE — наклон кривой ценности: слева от вершины p растёт, справа уменьшается. Все десять запусков на лекции пришли к вершине: p от 0.50 до 0.65, ценность −12.0…−11.7. Проверьте в песочнице: «Обучить REINFORCE»."
+  },
+  {
+    "id": "q6",
+    "topic": "Главный вопрос · вычитаем среднее",
+    "text": "Ко всем выигрышам прибавили 100: автоматы дают в среднем +101, +102, +103. Вероятности равные, сыграли худший №1 и выиграли +101. Что шаг REINFORCE (α = 0.01) сделает с вероятностью №1?",
+    "options": [
+      "вырастет",
+      "упадёт",
+      "не изменится",
+      "зависит от α"
+    ],
+    "answer": 0,
+    "explain": "0.33 → 0.58: положительный выигрыш поднимает вероятность любого сыгранного автомата. Разница между автоматами в сто раз меньше этого скачка — без вычитания 8 запусков из 20 закрепились на худшем. Исправление — вес R − b, где b — средний выигрыш: в песочнице включите «вычитать среднее»."
+  }
+];
+const LETTERS = ["A", "B", "C", "D"];
+
+/* локальное хранение (личное удобство: мой ответ и счётчик) */
+const store = {
+  get(k, d) { try { const v = localStorage.getItem("l05:" + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem("l05:" + k, JSON.stringify(v)); } catch {} },
+};
+
+let qIndex = 0;
+let revealed = {};
+const $ = (id) => document.getElementById(id);
+
+function renderQnav() {
+  const nav = $("qnav");
+  nav.innerHTML = "";
+  QUESTIONS.forEach((q, i) => {
+    const b = document.createElement("button");
+    b.textContent = i + 1;
+    b.setAttribute("role", "tab");
+    b.setAttribute("aria-selected", i === qIndex ? "true" : "false");
+    b.setAttribute("aria-label", "Вопрос " + (i + 1));
+    b.addEventListener("click", () => { qIndex = i; renderQuestion(); });
+    nav.appendChild(b);
+  });
+}
+
+function counts(q) { return store.get("cnt:" + q.id, [0, 0, 0, 0]); }
+
+function renderQuestion() {
+  renderQnav();
+  const q = QUESTIONS[qIndex];
+  const isRevealed = !!revealed[q.id];
+  $("q-topic").textContent = "Вопрос " + (qIndex + 1) + " из " + QUESTIONS.length + " · " + q.topic;
+  $("q-text").textContent = q.text;
+  $("qcard").classList.toggle("revealed", isRevealed);
+
+  const picked = store.get("pick:" + q.id, null);
+  const opts = $("q-opts");
+  opts.innerHTML = "";
+  q.options.forEach((text, i) => {
+    const b = document.createElement("button");
+    b.className = "opt";
+    b.dataset.picked = picked === i ? "1" : "0";
+    b.dataset.correct = q.answer === i ? "1" : "0";
+    b.innerHTML = '<span class="letter">' + LETTERS[i] + "</span><span></span>";
+    b.lastChild.textContent = text;
+    b.addEventListener("click", () => {
+      store.set("pick:" + q.id, i);
+      renderQuestion();
+    });
+    opts.appendChild(b);
+  });
+
+  const verdict = $("q-verdict");
+  if (isRevealed) {
+    const ok = picked === q.answer;
+    verdict.textContent = picked === null
+      ? "Ответ: " + LETTERS[q.answer]
+      : (ok ? "✓ Верно: " + LETTERS[q.answer] : "✗ Ваш выбор — " + LETTERS[picked] + ", верный ответ — " + LETTERS[q.answer]);
+    verdict.style.color = picked === null ? "" : (ok ? "var(--good)" : "var(--accent)");
+  } else {
+    verdict.textContent = picked === null ? "" : "Ваш выбор: " + LETTERS[picked];
+    verdict.style.color = "";
+  }
+  $("q-explain").hidden = !isRevealed;
+  $("q-explain").textContent = q.explain;
+  $("q-reveal").textContent = isRevealed ? "Скрыть ответ" : "Показать ответ";
+
+  renderCounter();
+}
+
+function renderCounter() {
+  const q = QUESTIONS[qIndex];
+  const grid = $("count-grid");
+  const cnt = counts(q);
+  const total = cnt.reduce((a, b) => a + b, 0);
+  const max = Math.max(1, ...cnt);
+  grid.innerHTML = "";
+  q.options.forEach((_, i) => {
+    const ctl = document.createElement("div");
+    ctl.className = "count-ctl";
+    const minus = document.createElement("button"); minus.textContent = "−";
+    minus.setAttribute("aria-label", "Минус один за " + LETTERS[i]);
+    const input = document.createElement("input");
+    input.type = "number"; input.min = 0; input.max = 999; input.value = cnt[i];
+    input.id = "cnt-" + q.id + "-" + i;
+    input.setAttribute("aria-label", "Голосов за " + LETTERS[i]);
+    const plus = document.createElement("button"); plus.textContent = "+";
+    plus.setAttribute("aria-label", "Плюс один за " + LETTERS[i]);
+    const save = (v) => { const c = counts(q); c[i] = Math.max(0, v | 0); store.set("cnt:" + q.id, c); renderCounter(); };
+    minus.addEventListener("click", () => save(counts(q)[i] - 1));
+    plus.addEventListener("click", () => save(counts(q)[i] + 1));
+    input.addEventListener("change", () => save(+input.value));
+    ctl.append(minus, input, plus);
+
+    const row = document.createElement("div");
+    row.className = "bar-row";
+    const letter = document.createElement("strong"); letter.textContent = LETTERS[i];
+    const track = document.createElement("div"); track.className = "bar-track";
+    const fill = document.createElement("div"); fill.className = "bar-fill";
+    fill.dataset.correct = q.answer === i ? "1" : "0";
+    fill.style.width = (cnt[i] / max * 100) + "%";
+    track.appendChild(fill);
+    const num = document.createElement("span"); num.className = "bar-num";
+    num.textContent = total ? cnt[i] + " · " + Math.round(cnt[i] / total * 100) + "%" : "0";
+    row.append(letter, track, num);
+    grid.append(ctl, row);
+  });
+}
+
+$("q-reveal").addEventListener("click", () => {
+  const q = QUESTIONS[qIndex];
+  revealed[q.id] = !revealed[q.id];
+  renderQuestion();
+});
+$("q-reset").addEventListener("click", () => {
+  const q = QUESTIONS[qIndex];
+  store.set("pick:" + q.id, null);
+  store.set("cnt:" + q.id, [0, 0, 0, 0]);
+  revealed[q.id] = false;
+  renderQuestion();
+});
+
+
+/* ---------------- песочница ---------------- */
+function mulberry32(seed) {
+  let a = seed | 0;
+  return function () {
+    a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+const SVGNS = "http://www.w3.org/2000/svg";
+function el(tag, attrs, parent) {
+  const node = document.createElementNS(SVGNS, tag);
+  for (const k in attrs) node.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(node);
+  return node;
+}
+function cssColor(name, fallback) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+}
+
+/* --- коридор: клетки 0, 1, 2, выход 3; в клетке 1 направления перепутаны --- */
+function move(cell, right) {
+  let step = right ? 1 : -1;
+  if (cell === 1) step = -step;
+  return Math.max(0, cell + step);
+}
+function corridorValue(p) {                 // уравнение Беллмана для стратегии: три уравнения, метод Гаусса
+  if (p <= 0 || p >= 1) return -Infinity;
+  const A = [[1, 0, 0, -1], [0, 1, 0, -1], [0, 0, 1, -1]];
+  for (let c = 0; c < 3; c++) {
+    [[true, p], [false, 1 - p]].forEach(([right, prob]) => {
+      const n = move(c, right);
+      if (n < 3) A[c][n] -= prob;
+    });
+  }
+  for (let i = 0; i < 3; i++) {
+    for (let j = i + 1; j < 3; j++) {
+      const f = A[j][i] / A[i][i];
+      for (let k = i; k < 4; k++) A[j][k] -= f * A[i][k];
+    }
+  }
+  const V = [0, 0, 0];
+  for (let i = 2; i >= 0; i--) {
+    let s = A[i][3];
+    for (let k = i + 1; k < 3; k++) s -= A[i][k] * V[k];
+    V[i] = s / A[i][i];
+  }
+  return V[0];
+}
+function playEpisode(p, rnd, maxSteps) {
+  let cell = 0; const cells = [0], actions = [];
+  for (let t = 0; t < maxSteps; t++) {
+    const right = rnd() < p;
+    actions.push(right ? 1 : 0);
+    cell = move(cell, right); cells.push(cell);
+    if (cell === 3) break;
+  }
+  return { cells, actions };
+}
+function reinforceCorridor(seed) {           // как в лекции: θ = −3, α = 0.001, 1000 эпизодов
+  const rnd = mulberry32(seed);
+  let theta = -3; const ps = [];
+  for (let ep = 0; ep < 1000; ep++) {
+    const p = 1 / (1 + Math.exp(-theta));
+    ps.push(p);
+    const { actions } = playEpisode(p, rnd, 1000);
+    const T = actions.length;
+    let grad = 0;
+    for (let t = 0; t < T; t++) grad += -(T - t) * (actions[t] - p);   // G_t = −(T − t)
+    theta += 0.001 * grad;
+  }
+  return ps;
+}
+
+const CURVE = { L: 46, R: 10, T: 12, B: 36, W: 440, H: 260 };
+const cx = (p) => CURVE.L + p * (CURVE.W - CURVE.L - CURVE.R);
+const cy = (v) => CURVE.T + (0 - Math.max(-100, v)) / 100 * (CURVE.H - CURVE.T - CURVE.B);
+let trail = null;
+
+function drawCurve(p) {
+  const svg = $("curve-svg");
+  svg.innerHTML = "";
+  [0, -25, -50, -75, -100].forEach((v) => {
+    el("line", { x1: CURVE.L, x2: CURVE.W - CURVE.R, y1: cy(v), y2: cy(v), stroke: "var(--line)", "stroke-width": 1 }, svg);
+    const t = el("text", { x: CURVE.L - 7, y: cy(v) + 4, "text-anchor": "end", "font-size": 12, class: "mut" }, svg);
+    t.textContent = String(v).replace("-", "−");
+  });
+  [0, 0.25, 0.5, 0.75, 1].forEach((x) => {
+    const t = el("text", { x: cx(x), y: CURVE.H - CURVE.B + 17, "text-anchor": "middle", "font-size": 12, class: "mut" }, svg);
+    t.textContent = x;
+  });
+  const cap = el("text", { x: (CURVE.L + CURVE.W - CURVE.R) / 2, y: CURVE.H - 3, "text-anchor": "middle", "font-size": 12, class: "mut" }, svg);
+  cap.textContent = "p — вероятность «вправо»";
+  const best = 2 - Math.SQRT2;
+  el("line", { x1: cx(best), x2: cx(best), y1: CURVE.T, y2: CURVE.H - CURVE.B, stroke: "var(--accent)",
+    "stroke-dasharray": "3 4", "stroke-width": 1.5 }, svg);
+  const pts = [];
+  for (let i = 0; i <= 240; i++) {
+    const q = 0.02 + i / 240 * 0.96, v = corridorValue(q);
+    if (v > -100) pts.push(cx(q) + "," + cy(v));
+  }
+  el("polyline", { points: pts.join(" "), fill: "none", stroke: "var(--muted)", "stroke-width": 2.5 }, svg);
+  if (trail) {
+    trail.forEach((q, i) => { if (i % 4 === 0) el("circle", { cx: cx(q), cy: cy(corridorValue(q)), r: 2.2,
+      fill: cssColor("--ql", "#4C72B0"), opacity: 0.35 }, svg); });
+  }
+  el("circle", { cx: cx(p), cy: cy(corridorValue(p)), r: 8, fill: cssColor("--ql", "#4C72B0"),
+    stroke: "var(--fg)", "stroke-width": 1.5 }, svg);
+}
+
+function updateCorridor() {
+  const p = +$("p").value;
+  $("p-out").textContent = p.toFixed(2);
+  $("p-value").textContent = corridorValue(p).toFixed(1).replace("-", "−");
+  drawCurve(p);
+}
+let playSeed = (Math.random() * 1e9) | 0;
+$("p").addEventListener("input", updateCorridor);
+$("play").addEventListener("click", () => {
+  playSeed += 1;
+  const { cells } = playEpisode(+$("p").value, mulberry32(playSeed), 1000);
+  const done = cells[cells.length - 1] === 3;
+  const shown = cells.length > 61 ? cells.slice(0, 60).join(" ") + " …" : cells.join(" ");
+  $("cells").textContent = shown + (done ? "  — вышел за " + (cells.length - 1) + " шагов"
+                                         : "  — за 1000 шагов не вышел");
+});
+let pgSeed = (Math.random() * 1e9) | 0;
+$("train-pg").addEventListener("click", () => {
+  pgSeed += 1;
+  trail = reinforceCorridor(pgSeed);
+  const last = trail[trail.length - 1];
+  $("p").value = last.toFixed(2);
+  $("pg-note").textContent = "REINFORCE: p после 1000 эпизодов = " + last.toFixed(2) + ", ценность старта " +
+    corridorValue(last).toFixed(1).replace("-", "−") + ". Точки — путь p по эпизодам.";
+  updateCorridor();
+});
+
+/* --- три автомата --- */
+const MEANS = [1, 2, 3];
+function gauss(rnd) {
+  let u = 0; while (u === 0) u = rnd();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rnd());
+}
+function softmax(th) {
+  const m = Math.max(...th), e = th.map((x) => Math.exp(x - m)), s = e.reduce((a, b) => a + b, 0);
+  return e.map((x) => x / s);
+}
+function banditReinforce(seed, shift, useBaseline, alpha) {
+  const rnd = mulberry32(seed);
+  const theta = [0, 0, 0]; let b = 0; const hist = [];
+  for (let n = 1; n <= 2000; n++) {
+    const pi = softmax(theta);
+    const u = rnd(); const a = u < pi[0] ? 0 : (u < pi[0] + pi[1] ? 1 : 2);
+    const R = MEANS[a] + shift + gauss(rnd);
+    b += (R - b) / n;                                   // среднее на ходу
+    const w = useBaseline ? R - b : R;
+    for (let k = 0; k < 3; k++) theta[k] += alpha * w * ((k === a ? 1 : 0) - pi[k]);
+    if (n % 10 === 0 || n === 1) hist.push([n, softmax(theta)]);
+  }
+  return hist;
+}
+function drawBandit(hist) {
+  const svg = $("bandit-svg");
+  svg.innerHTML = "";
+  const L = 46, R = 10, T = 12, B = 36, W = 440, H = 260;
+  const x = (n) => L + n / 2000 * (W - L - R), y = (v) => T + (1 - v) * (H - T - B);
+  [0, 0.25, 0.5, 0.75, 1].forEach((v) => {
+    el("line", { x1: L, x2: W - R, y1: y(v), y2: y(v), stroke: "var(--line)", "stroke-width": 1 }, svg);
+    const t = el("text", { x: L - 7, y: y(v) + 4, "text-anchor": "end", "font-size": 12, class: "mut" }, svg);
+    t.textContent = v;
+  });
+  [[0, "start"], [1000, "middle"], [2000, "end"]].forEach(([n, anchor]) => {
+    const t = el("text", { x: x(n), y: H - B + 17, "text-anchor": anchor, "font-size": 12, class: "mut" }, svg);
+    t.textContent = n;
+  });
+  const cap = el("text", { x: (L + W - R) / 2, y: H - 3, "text-anchor": "middle", "font-size": 12, class: "mut" }, svg);
+  cap.textContent = "попытка";
+  const colors = [cssColor("--sarsa", "#DD8452"), cssColor("--muted", "#888"), cssColor("--good", "#2e7d32")];
+  [0, 1, 2].forEach((k) => {
+    const pts = [[0, 1 / 3]].concat(hist.map(([n, pi]) => [n, pi[k]])).map(([n, v]) => x(n) + "," + y(v)).join(" ");
+    el("polyline", { points: pts, fill: "none", stroke: colors[k], "stroke-width": 2.5 }, svg);
+  });
+}
+let banditSeed = (Math.random() * 1e9) | 0;
+function runBandit() {
+  const hist = banditReinforce(banditSeed, $("shift").checked ? 100 : 0, $("baseline").checked, +$("alpha").value);
+  drawBandit(hist);
+  const pi = hist[hist.length - 1][1];
+  const win = pi.indexOf(Math.max(...pi));
+  const v = $("bandit-verdict");
+  v.textContent = "закрепился на №" + (win + 1) + (win === 2 ? " — лучший" : win === 0 ? " — худший" : "");
+  v.className = "big " + (win === 2 ? "verdict-good" : "verdict-bad");
+  $("bandit-probs").textContent = "вероятности: №1 " + pi[0].toFixed(2) + " · №2 " + pi[1].toFixed(2) + " · №3 " + pi[2].toFixed(2);
+}
+["shift", "baseline", "alpha"].forEach((id) => $(id).addEventListener("change", runBandit));
+$("train-bandit").addEventListener("click", () => { banditSeed += 1; runBandit(); });
+
+/* ---------------- вкладки ---------------- */
+document.querySelectorAll("nav.tabs button").forEach((b) => {
+  b.addEventListener("click", () => {
+    document.querySelectorAll("nav.tabs button").forEach((x) => x.setAttribute("aria-selected", x === b ? "true" : "false"));
+    $("view-questions").hidden = b.dataset.tab !== "questions";
+    $("view-sandbox").hidden = b.dataset.tab !== "sandbox";
+  });
+});
+if (location.hash === "#sandbox") document.getElementById("tab-s").click();
+
+renderQuestion();
+updateCorridor();
+runBandit();
+</script>
+</body>
+</html>
