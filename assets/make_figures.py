@@ -1870,6 +1870,29 @@ def max_bias():
     plt.close(fig)
 
 
+
+# ---- лекция 5: градиент стратегии --------------------------------------------------------------
+
+
+def corridor_rules():
+    """Коридор с перепутанной клеткой (Саттон и Барто, пример 13.1) — рисует draw_corridor из pg_plots.py."""
+    import sys
+    sys.path.insert(0, str(OUT.parent / "05-policy-gradient" / "lecture"))
+    from pg_plots import draw_corridor
+
+    fig, ax = plt.subplots(figsize=(8.4, 3.3))
+    draw_corridor(ax=ax)
+    fig.savefig(OUT / "corridor_rules.png", dpi=DPI, bbox_inches="tight", pad_inches=0.15)
+    plt.close(fig)
+
+
+def lecture05_qr():
+    """QR-код страницы-спутника лекции 5 (тот же размер, что у lecture04_qr.png)."""
+    import qrcode
+
+    img = qrcode.make("https://ilyachichkanov.github.io/Reinforcement-learning/lecture05.html", box_size=8, border=2)
+    img.resize((328, 328)).save(OUT / "lecture05_qr.png")
+
 if __name__ == "__main__":
     for fn in (agent_env_loop, ml_paradigms, rl_timeline, rl_origins, rl_taxonomy, mdp_gridworld, course_map, markov_chain, cem_loop,
                env_anatomy, wrapper_onion, reward_types, observation_vs_state, action_spaces, policy_types,
@@ -1877,6 +1900,7 @@ if __name__ == "__main__":
                value_meaning, values_four_cases, where_we_average, q_four_cases, q_where_we_average, pe_update,
                recap_week2, model_vs_sample, running_mean, mc_vs_td, backup_diagrams, vi_vs_q_learning, eps_greedy,
                sarsa_vs_q, on_off_policy, value_based_map,
-               ql_recap, update_shift, cliff_rules, max_bias, td_loss):
+               ql_recap, update_shift, cliff_rules, max_bias, td_loss,
+               corridor_rules, lecture05_qr):
         fn()
         print("saved", fn.__name__)

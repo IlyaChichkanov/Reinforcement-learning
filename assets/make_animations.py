@@ -501,6 +501,52 @@ def taxi_trained():
 ALL.update({"taxi_random": taxi_random, "taxi_trained": taxi_trained})
 
 
+
+# --------------------------------------------------------------------------- лекция 5: REINFORCE в коридоре
+sys.path.insert(0, str(ROOT / "05-policy-gradient" / "lecture"))
+from pg_plots import Corridor, corridor_value, plot_value_curve, softmax  # noqa: E402
+
+
+def _reinforce_corridor(theta=-3.0, alpha=0.001, n_episodes=1000, seed=0, max_steps=1000):
+    """Тот же REINFORCE, что в разделе 5 лекции (play + grad_estimate); возвращает p перед каждым эпизодом."""
+    rng = np.random.default_rng(seed)
+    history = []
+    for _ in range(n_episodes):
+        p = softmax([0.0, theta])[1]
+        history.append(p)
+        env = Corridor(); env.reset()
+        actions, rewards = [], []
+        for _ in range(max_steps):
+            a = int(rng.random() < p)
+            _, r, terminated, _, _ = env.step(a)
+            actions.append(a); rewards.append(r)
+            if terminated:
+                break
+        G = np.cumsum(np.array(rewards)[::-1])[::-1]
+        theta += alpha * np.sum(G * (np.array(actions) - p))
+    return np.array(history)
+
+
+def reinforce_corridor():
+    """Точка p ползёт по кривой ценности коридора от p = 0.05 к вершине p ≈ 0.59."""
+    ps = _reinforce_corridor()
+    checkpoints = [0, 5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 120, 140, 160, 200, 250, 300, 400, 600, 800, 999]
+    fig, ax = plt.subplots(figsize=(7.2, 3.9))
+
+    def frame(i):
+        ax.clear()
+        k = checkpoints[i]
+        plot_value_curve(ax=ax, trail=ps[:k + 1], marker=ps[k])
+        ax.set_title(f"REINFORCE, эпизод {k}: p = {ps[k]:.2f}, ценность старта {corridor_value(ps[k]):.1f}"
+                     .replace("-", "−"), fontsize=12)
+        fig.tight_layout()
+
+    _save(FuncAnimation(fig, frame, frames=len(checkpoints), interval=500), "reinforce_corridor", fps=2)
+    plt.close(fig)
+
+
+ALL.update({"reinforce_corridor": reinforce_corridor})
+
 if __name__ == "__main__":
     names = sys.argv[1:] or list(ALL)
     for n in names:
