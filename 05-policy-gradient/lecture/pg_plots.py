@@ -7,7 +7,7 @@
                                   reset(seed=None) -> (наблюдение, {}), step(a) -> (наблюдение, награда, конец, False, info).
                                   Наблюдение всегда 0: датчик не различает клеток. Настоящая клетка — env.cell и info["cell"].
     LEFT, RIGHT = 0, 1            номера действий
-    corridor_value(p)             ценность старта при вероятности «вправо» p — точное решение уравнения
+    corridor_value(p)             ценность старта при вероятности → p — точное решение уравнения
                                   Беллмана для стратегии (три уравнения, np.linalg.solve)
     corridor_slope(theta)         наклон ценности старта по θ, где p = e^θ / (1 + e^θ): насколько меняется
                                   ценность при малом сдвиге θ (центральная разность по corridor_value)
@@ -33,7 +33,7 @@ C_AGENT, C_ENV, C_REWARD, C_ACCENT, C_GREY = "#4C72B0", "#55A868", "#DD8452", "#
 
 LEFT, RIGHT = 0, 1
 N_CELLS = 3                       # клетки 0, 1, 2; клетка 3 — выход
-SWAPPED = 1                       # в этой клетке «вправо» ведёт влево, а «влево» — вправо
+SWAPPED = 1                       # в этой клетке → ведёт в клетку 0, а ← — в клетку 2
 BANDIT_MEANS = (1.0, 2.0, 3.0)
 
 
@@ -64,9 +64,9 @@ class Corridor:
 
 
 def corridor_value(p):
-    """Ценность старта, если в каждой клетке «вправо» выбирается с вероятностью p.
+    """Ценность старта, если в каждой клетке → выбирается с вероятностью p.
 
-    Уравнение Беллмана для стратегии из лекции 2: V(c) = −1 + p·V(куда ведёт «вправо») + (1 − p)·V(куда ведёт «влево»),
+    Уравнение Беллмана для стратегии из лекции 2: V(s) = −1 + p·V(куда ведёт →) + (1 − p)·V(куда ведёт ←),
     у выхода V = 0. Три линейных уравнения на V(0), V(1), V(2). При p = 0 или 1 выхода нет: возвращаем −inf.
     """
     if p <= 0.0 or p >= 1.0:
@@ -81,7 +81,7 @@ def corridor_value(p):
 
 
 def corridor_slope(theta, h=1e-5):
-    """Наклон ценности старта по предпочтению «вправо» θ (p = e^θ / (1 + e^θ)) — эталон для сравнения с оценкой REINFORCE."""
+    """Наклон ценности старта по предпочтению → θ (p = e^θ / (1 + e^θ)) — эталон для сравнения с оценкой REINFORCE."""
     def value(t):
         return corridor_value(1.0 / (1.0 + np.exp(-t)))
     return (value(theta + h) - value(theta - h)) / (2 * h)
@@ -112,9 +112,9 @@ def draw_corridor(ax=None, title="", sensor=True):
             x0, x1 = c + 0.5 - 0.22 * step, c + 0.5 + 0.22 * step
             ax.add_patch(FancyArrowPatch((x0, y), (x1, y), arrowstyle="-|>", mutation_scale=16, lw=2.4, color=color))
     ax.text(SWAPPED + 0.5, -0.08, "направления\nперепутаны", ha="center", va="top", fontsize=11, color=C_ACCENT)
-    ax.text(0.5, -0.08, "«влево» —\nв стену", ha="center", va="top", fontsize=10, color=C_GREY)
-    ax.plot([], [], color=C_AGENT, lw=2.4, label="куда ведёт «вправо»")
-    ax.plot([], [], color=C_REWARD, lw=2.4, label="куда ведёт «влево»")
+    ax.text(0.5, -0.08, "← — в стену", ha="center", va="top", fontsize=10, color=C_GREY)
+    ax.plot([], [], color=C_AGENT, lw=2.4, label="куда ведёт →")
+    ax.plot([], [], color=C_REWARD, lw=2.4, label="куда ведёт ←")
     ax.legend(loc="lower center", bbox_to_anchor=(0.5, 0.9), ncol=2, fontsize=11, frameon=False)
     if sensor:
         ax.text(2.0, -0.62, "награда −1 за каждый шаг\nдатчик агента во всех клетках показывает одно и то же",
@@ -151,7 +151,7 @@ def plot_value_curve(points=None, ax=None, title="", trail=None, marker=None):
         ax.annotate(f"{label}\n{v:.1f}".replace("\n-", "\n−"), (p, v), textcoords="offset points",
                     xytext=offset, ha=ha, va=va, fontsize=11)
     ax.set_ylim(-100, 0); ax.set_xlim(0, 1)
-    ax.set_xlabel("p — вероятность действия «вправо»", fontsize=12)
+    ax.set_xlabel("p — вероятность действия →", fontsize=12)
     ax.set_ylabel("ценность старта", fontsize=12)
     ax.tick_params(labelsize=11); ax.grid(alpha=0.3)
     ax.set_title(title, fontsize=12)
