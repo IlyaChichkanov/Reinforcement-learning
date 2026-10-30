@@ -25,6 +25,8 @@
         curves — массив (запуски, шаги); каждая линия — один запуск
     plot_lengths(curves, ax=None, title="", color=C_ENV, window=10)
         curves — массив (запуски, эпизоды) длин эпизодов CartPole; тонкие линии — запуски, жирная — медиана
+    plot_weights(weights, ax=None, title="")
+        weights — вес каждого шага эпизода; столбики: зелёные — положительный вес, красные — отрицательный
 """
 import numpy as np
 import matplotlib.pyplot as plt
@@ -227,5 +229,19 @@ def plot_lengths(curves, ax=None, title="", color=C_ENV, window=10):
     ax.set_xlabel("эпизод", fontsize=12); ax.set_ylabel("сколько шагов простоял шест", fontsize=12)
     ax.tick_params(labelsize=11)
     ax.legend(loc="lower right", fontsize=11)
+    ax.set_title(title, fontsize=12)
+    return ax
+
+
+def plot_weights(weights, ax=None, title=""):
+    """Вес каждого шага эпизода столбиком: зелёный — шаг поднимает вероятность сыгранного действия, красный — опускает."""
+    if ax is None:
+        _, ax = plt.subplots(figsize=(7, 3.2))
+    weights = np.asarray(weights, dtype=float)
+    colors = [C_ENV if w > 0 else C_ACCENT for w in weights]
+    ax.bar(np.arange(len(weights)), weights, color=colors, width=0.8)
+    ax.axhline(0, color="black", lw=1)
+    ax.set_xlabel("шаг эпизода t", fontsize=12); ax.set_ylabel("вес толчка", fontsize=12)
+    ax.tick_params(labelsize=11); ax.grid(axis="y", alpha=0.3)
     ax.set_title(title, fontsize=12)
     return ax
