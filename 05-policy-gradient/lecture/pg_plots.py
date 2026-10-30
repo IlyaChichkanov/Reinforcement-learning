@@ -241,7 +241,7 @@ def plot_weights(weights, ax=None, title=""):
     colors = [C_ENV if w > 0 else C_ACCENT for w in weights]
     ax.bar(np.arange(len(weights)), weights, color=colors, width=0.8)
     ax.axhline(0, color="black", lw=1)
-    ax.set_xlabel("шаг эпизода t", fontsize=12); ax.set_ylabel("вес толчка", fontsize=12)
+    ax.set_xlabel("шаг эпизода t", fontsize=12); ax.set_ylabel("вес действия", fontsize=12)
     ax.tick_params(labelsize=11); ax.grid(axis="y", alpha=0.3)
     ax.set_title(title, fontsize=12)
     return ax
