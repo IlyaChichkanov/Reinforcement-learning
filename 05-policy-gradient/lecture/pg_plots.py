@@ -24,6 +24,8 @@
         shares — словарь {подпись: доли «оценка указывает в гору»} для числа усредняемых попыток ns
     plot_seeds(curves, ax=None, title="", ylabel="", color=C_AGENT, xlabel="попытка")
         curves — массив (запуски, шаги); каждая линия — один запуск
+    plot_lengths(curves, ax=None, title="", color=C_ENV, window=10)
+        curves — массив (запуски, эпизоды) длин эпизодов CartPole; тонкие линии — запуски, жирная — медиана
 """
 import numpy as np
 import matplotlib.pyplot as plt
@@ -204,5 +206,28 @@ def plot_seeds(curves, ax=None, title="", ylabel="", color=C_AGENT, xlabel="по
         ax.plot(run, color=color, lw=1.2, alpha=0.45)
     ax.set_xlabel(xlabel, fontsize=12); ax.set_ylabel(ylabel, fontsize=12)
     ax.set_ylim(-0.03, 1.03); ax.grid(alpha=0.3)
+    ax.set_title(title, fontsize=12)
+    return ax
+
+
+def plot_lengths(curves, ax=None, title="", color=C_ENV, window=10):
+    """Сколько шагов простоял шест в каждом эпизоде CartPole: тонкие линии — запуски, жирная — медиана.
+
+    Кривые сглажены скользящим средним по window эпизодам, иначе они дрожат от эпизода к эпизоду."""
+    if ax is None:
+        _, ax = plt.subplots(figsize=(7, 3.6))
+    curves = np.asarray(curves, dtype=float)
+    kernel = np.ones(window) / window
+    smooth = np.array([np.convolve(c, kernel, mode="valid") for c in curves])
+    episodes = np.arange(window, curves.shape[1] + 1)
+    for run in smooth:
+        ax.plot(episodes, run, color=color, lw=1, alpha=0.35)
+    ax.plot(episodes, np.median(smooth, axis=0), color=color, lw=3, label="медиана по запускам")
+    ax.axhline(500, color=C_GREY, ls="--", lw=1)
+    ax.text(episodes[0], 485, "максимум 500", fontsize=11, color=C_GREY, va="top")
+    ax.set_ylim(0, 520); ax.grid(alpha=0.3)
+    ax.set_xlabel("эпизод", fontsize=12); ax.set_ylabel("сколько шагов простоял шест", fontsize=12)
+    ax.tick_params(labelsize=11)
+    ax.legend(loc="lower right", fontsize=11)
     ax.set_title(title, fontsize=12)
     return ax
