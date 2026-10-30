@@ -9,6 +9,8 @@
     LEFT, RIGHT = 0, 1            номера действий
     corridor_value(p)             ценность старта при вероятности «вправо» p — точное решение уравнения
                                   Беллмана для стратегии (три уравнения, np.linalg.solve)
+    corridor_slope(theta)         наклон ценности старта по θ, где p = e^θ / (1 + e^θ): насколько меняется
+                                  ценность при малом сдвиге θ (центральная разность по corridor_value)
     softmax(theta)                предпочтения -> вероятности
     BANDIT_MEANS                  средние выигрыши трёх автоматов, шум выигрыша σ = 1
 
@@ -76,6 +78,13 @@ def corridor_value(p):
             if nxt < N_CELLS:
                 A[c, nxt] -= prob
     return float(np.linalg.solve(A, b)[0])
+
+
+def corridor_slope(theta, h=1e-5):
+    """Наклон ценности старта по предпочтению «вправо» θ (p = e^θ / (1 + e^θ)) — эталон для сравнения с оценкой REINFORCE."""
+    def value(t):
+        return corridor_value(1.0 / (1.0 + np.exp(-t)))
+    return (value(theta + h) - value(theta - h)) / (2 * h)
 
 
 def softmax(theta):
