@@ -5,6 +5,7 @@
 | 1 | [`01-intro/seminar/seminar.ipynb`](../01-intro/seminar/seminar.ipynb) | [`week01/seminar.ipynb`](week01/seminar.ipynb) |
 | 2 | [`02-environments/seminar/seminar.ipynb`](../02-environments/seminar/seminar.ipynb) | [`week02/seminar.ipynb`](week02/seminar.ipynb) |
 | 4 | [`04-sarsa/seminar/seminar.ipynb`](../04-sarsa/seminar/seminar.ipynb) | [`week04/seminar.ipynb`](week04/seminar.ipynb) |
+| 5 | [`05-policy-gradient/seminar/seminar.ipynb`](../05-policy-gradient/seminar/seminar.ipynb) | [`week05/seminar.ipynb`](week05/seminar.ipynb) |
 
 Решение — тот же ноутбук, что и семинар, но все `TODO` заполнены, ноутбук выполнен, и графики сохранены. Сначала попробуйте решить сами: на каждом семинаре после каждой задачи стоит проверка, которая подскажет, если что-то не так.
 
