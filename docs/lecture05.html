@@ -16,7 +16,7 @@
   --line: #e4ded4;
   --accent: #c44e52;    /* акцент курса */
   --ql: #4C72B0;        /* →, REINFORCE */
-  --sarsa: #DD8452;     /* худший автомат */
+  --sarsa: #DD8452;     /* без вычитания */
   --good: #2e7d32;
   --good-bg: #e4f2e5;
   --bar: #d8d2c6;
@@ -223,44 +223,6 @@ footer a { color: inherit; }
     </div>
   </div>
 
-  <div class="sand-block">
-    <h2>Три автомата</h2>
-    <p class="sand-note">
-      Автоматы №1, №2, №3 выигрывают в среднем 1, 2 и 3 (шум ±1). REINFORCE делает 2000 попыток:
-      после каждой сдвигает предпочтения на α · вес · (e<sub><em>a</em></sub> − вектор вероятностей), вес — выигрыш <em>R</em>
-      или <em>R</em> − <em>b</em>, если вычитаем средний выигрыш <em>b</em>. У каждого телефона — свой случай.
-    </p>
-    <div class="sand-controls">
-      <label class="check"><input type="checkbox" id="shift"> +100 ко всем выигрышам</label>
-      <label class="check"><input type="checkbox" id="baseline"> вычитать среднее</label>
-      <div class="ctl">
-        <label for="alpha">α — шаг</label>
-        <select id="alpha">
-          <option value="0.001">0.001</option><option value="0.003">0.003</option>
-          <option value="0.01" selected>0.01</option><option value="0.03">0.03</option>
-        </select>
-      </div>
-      <button class="btn primary" id="train-bandit">Обучить заново (новый случай)</button>
-    </div>
-    <div class="boards">
-      <div class="panel">
-        <h3>Вероятность каждого автомата по попыткам</h3>
-        <svg id="bandit-svg" viewBox="0 0 440 260" role="img" aria-label="Вероятности трёх автоматов во время обучения"></svg>
-        <div class="legend">
-          <span><span class="swatch" style="background:var(--sarsa)"></span>№1 (худший)</span>
-          <span><span class="swatch" style="background:var(--muted)"></span>№2</span>
-          <span><span class="swatch" style="background:var(--good)"></span>№3 (лучший)</span>
-        </div>
-      </div>
-      <div class="panel">
-        <h3>После 2000 попыток</h3>
-        <p class="big" id="bandit-verdict">—</p>
-        <p class="hint" id="bandit-probs">—</p>
-        <p class="hint">На лекции при +100 без вычитания 8 запусков из 20 закрепились на худшем №1.
-          С вычитанием среднего все 20 нашли №3.</p>
-      </div>
-    </div>
-  </div>
 </section>
 
 <footer>
@@ -330,7 +292,7 @@ const QUESTIONS = [
   {
     "id": "q6",
     "topic": "Главный вопрос · вычитаем среднее",
-    "text": "Три игровых автомата: за попытку агент выбирает один и получает случайный выигрыш; средних он не знает. Автоматы дают в среднем +101, +102, +103 (№3 лучший). Стратегия — softmax, вероятности сейчас равные. Сыграли худший №1 и выиграли +101. Что шаг REINFORCE (α = 0.01) сделает с вероятностью №1?",
+    "text": "CartPole: награда +1 за каждый шаг, пока шест стоит. Стратегия — нейросеть, её учат REINFORCE с γ = 0.99 без вычитания среднего. Шест простоял 20 шагов и упал. Что шаг REINFORCE сделает с вероятностью последнего толчка — того, после которого шест упал?",
     "options": [
       "вырастет",
       "упадёт",
@@ -338,7 +300,7 @@ const QUESTIONS = [
       "зависит от α"
     ],
     "answer": 0,
-    "explain": "0.33 → 0.58: положительный выигрыш поднимает вероятность любого сыгранного автомата. Разница между автоматами в сто раз меньше этого скачка — без вычитания 8 запусков из 20 закрепились на худшем. Исправление — вес R − b, где b — средний выигрыш: в песочнице включите «вычитать среднее»."
+    "explain": "Вес последнего толчка γ^19 · G_19 = 0.83 > 0; у всех толчков эпизода веса положительны — от 18.21 до 0.83. Шаг с положительным весом поднимает вероятность любого сыгранного действия. Исправление — вес γ^t (G_t − b), где b — средний G_t прошлых шагов: у толчков перед падением G_t − b ≈ −60. На лекции без вычитания сеть держала шест в среднем 180 шагов, с вычитанием — 458."
   },
   {
     "id": "q7",
@@ -616,66 +578,6 @@ $("train-pg").addEventListener("click", () => {
   updateCorridor();
 });
 
-/* --- три автомата --- */
-const MEANS = [1, 2, 3];
-function gauss(rnd) {
-  let u = 0; while (u === 0) u = rnd();
-  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rnd());
-}
-function softmax(th) {
-  const m = Math.max(...th), e = th.map((x) => Math.exp(x - m)), s = e.reduce((a, b) => a + b, 0);
-  return e.map((x) => x / s);
-}
-function banditReinforce(seed, shift, useBaseline, alpha) {
-  const rnd = mulberry32(seed);
-  const theta = [0, 0, 0]; let b = 0; const hist = [];
-  for (let n = 1; n <= 2000; n++) {
-    const pi = softmax(theta);
-    const u = rnd(); const a = u < pi[0] ? 0 : (u < pi[0] + pi[1] ? 1 : 2);
-    const R = MEANS[a] + shift + gauss(rnd);
-    b += (R - b) / n;                                   // среднее на ходу
-    const w = useBaseline ? R - b : R;
-    for (let k = 0; k < 3; k++) theta[k] += alpha * w * ((k === a ? 1 : 0) - pi[k]);
-    if (n % 10 === 0 || n === 1) hist.push([n, softmax(theta)]);
-  }
-  return hist;
-}
-function drawBandit(hist) {
-  const svg = $("bandit-svg");
-  svg.innerHTML = "";
-  const L = 46, R = 10, T = 12, B = 36, W = 440, H = 260;
-  const x = (n) => L + n / 2000 * (W - L - R), y = (v) => T + (1 - v) * (H - T - B);
-  [0, 0.25, 0.5, 0.75, 1].forEach((v) => {
-    el("line", { x1: L, x2: W - R, y1: y(v), y2: y(v), stroke: "var(--line)", "stroke-width": 1 }, svg);
-    const t = el("text", { x: L - 7, y: y(v) + 4, "text-anchor": "end", "font-size": 12, class: "mut" }, svg);
-    t.textContent = v;
-  });
-  [[0, "start"], [1000, "middle"], [2000, "end"]].forEach(([n, anchor]) => {
-    const t = el("text", { x: x(n), y: H - B + 17, "text-anchor": anchor, "font-size": 12, class: "mut" }, svg);
-    t.textContent = n;
-  });
-  const cap = el("text", { x: (L + W - R) / 2, y: H - 3, "text-anchor": "middle", "font-size": 12, class: "mut" }, svg);
-  cap.textContent = "попытка";
-  const colors = [cssColor("--sarsa", "#DD8452"), cssColor("--muted", "#888"), cssColor("--good", "#2e7d32")];
-  [0, 1, 2].forEach((k) => {
-    const pts = [[0, 1 / 3]].concat(hist.map(([n, pi]) => [n, pi[k]])).map(([n, v]) => x(n) + "," + y(v)).join(" ");
-    el("polyline", { points: pts, fill: "none", stroke: colors[k], "stroke-width": 2.5 }, svg);
-  });
-}
-let banditSeed = (Math.random() * 1e9) | 0;
-function runBandit() {
-  const hist = banditReinforce(banditSeed, $("shift").checked ? 100 : 0, $("baseline").checked, +$("alpha").value);
-  drawBandit(hist);
-  const pi = hist[hist.length - 1][1];
-  const win = pi.indexOf(Math.max(...pi));
-  const v = $("bandit-verdict");
-  v.textContent = "закрепился на №" + (win + 1) + (win === 2 ? " — лучший" : win === 0 ? " — худший" : "");
-  v.className = "big " + (win === 2 ? "verdict-good" : "verdict-bad");
-  $("bandit-probs").textContent = "вероятности: №1 " + pi[0].toFixed(2) + " · №2 " + pi[1].toFixed(2) + " · №3 " + pi[2].toFixed(2);
-}
-["shift", "baseline", "alpha"].forEach((id) => $(id).addEventListener("change", runBandit));
-$("train-bandit").addEventListener("click", () => { banditSeed += 1; runBandit(); });
-
 /* ---------------- вкладки ---------------- */
 document.querySelectorAll("nav.tabs button").forEach((b) => {
   b.addEventListener("click", () => {
@@ -688,7 +590,6 @@ if (location.hash === "#sandbox") document.getElementById("tab-s").click();
 
 renderQuestion();
 updateCorridor();
-runBandit();
 </script>
 </body>
 </html>
