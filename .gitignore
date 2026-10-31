@@ -15,3 +15,6 @@ journal.csv
 
 # скилл курса копируется из приватного репо хуком SessionStart
 .claude/skills/course-materials/
+
+# GIF, который пишет animate_cartpole при прогоне семинара 5
+cartpole.gif

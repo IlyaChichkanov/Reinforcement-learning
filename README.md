@@ -42,7 +42,7 @@
 <td>5</td>
 <td>31.10</td>
 <td>Основные алгоритмы RL: policy based — градиент стратегии и REINFORCE</td>
-<td><a href="05-policy-gradient/lecture/lecture.ipynb">лекция</a> · <a href="https://ilyachichkanov.github.io/Reinforcement-learning/lecture05.html">страница с вопросами и песочницей</a> · <a href="https://ilyachichkanov.github.io/Reinforcement-learning/">квиз</a></td>
+<td><a href="05-policy-gradient/lecture/lecture.ipynb">лекция</a> · <a href="05-policy-gradient/seminar/seminar.ipynb">семинар</a> · <a href="https://ilyachichkanov.github.io/Reinforcement-learning/lecture05.html">страница с вопросами и песочницей</a> · <a href="https://ilyachichkanov.github.io/Reinforcement-learning/">квиз</a></td>
 </tr>
 <tr>
 <td>6</td>
