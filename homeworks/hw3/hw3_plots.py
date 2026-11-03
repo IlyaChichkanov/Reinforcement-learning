@@ -27,7 +27,7 @@
         curves — массив (запуски, эпизоды) длин эпизодов Acrobot; тонкие линии — запуски, жирная — медиана
 
 Анимация
-    animate_acrobot(states, actions=None, path="acrobot.gif", every=4, fps=12)
+    animate_acrobot(states, actions=None, path="acrobot.gif", every=2, fps=12)
         GIF из списка состояний; возвращает IPython Image — показать через display()
 """
 import numpy as np
@@ -81,9 +81,9 @@ def draw_grey_corridor(ax=None, title="", probs=None):
     for c in range(CELLS):
         color = "#a9dfa9" if c == EXIT else "#c8c8c8" if c in (1, 3, 4) else "white"
         ax.add_patch(Rectangle((c, 0), 1, 1, facecolor=color, edgecolor="#555555", lw=1.2))
-        ax.text(c + 0.5, 1.1, f"клетка {c}", ha="center", va="bottom", fontsize=11)
+        ax.text(c + 0.5, 1.08, str(c), ha="center", va="bottom", fontsize=13)
         label = "выход" if c == EXIT else OBS_NAMES[observe(c)]
-        ax.text(c + 0.5, -0.12, label.replace(" ", "\n"), ha="center", va="top", fontsize=10,
+        ax.text(c + 0.5, -0.12, label.replace(" ", "\n"), ha="center", va="top", fontsize=11,
                 color="#2f6b2f" if c == EXIT else "#333333")
         if probs is not None and c != EXIT:
             ax.text(c + 0.5, 0.5, f"→ {probs[observe(c)]:.2f}", ha="center", va="center", fontsize=11)
@@ -101,9 +101,9 @@ def plot_value_curves(ps, curves, ax=None, best=None, title=""):
         ax.plot(ps, values, color=color, lw=2.5, label=label)
     if best is not None:
         ax.plot(*best, "o", color="black", ms=8, zorder=5)
-        ax.annotate(f"p = {best[0]:.2f}, ценность {best[1]:.2f}".replace("-", "−"), best,
+        ax.annotate(f"$p_G$ = {best[0]:.2f}, ценность {best[1]:.2f}".replace("-", "−"), best,
                     textcoords="offset points", xytext=(10, -22), fontsize=11)
-    ax.set_xlabel("p — вероятность → в серых клетках", fontsize=12)
+    ax.set_xlabel("$p_G$ — вероятность → в серых клетках", fontsize=12)
     ax.set_ylabel("ценность старта", fontsize=12)
     ax.tick_params(labelsize=11); ax.grid(alpha=0.3); ax.legend(fontsize=11, loc="lower center")
     ax.set_title(title, fontsize=12)
@@ -117,9 +117,8 @@ def plot_prob_runs(runs, ax=None, target=None, title="", ylabel="", color=C_AGEN
     for run in np.asarray(runs):
         ax.plot(run, color=color, lw=1.2, alpha=0.5)
     if target is not None:
-        ax.axhline(target, color="black", ls="--", lw=1.5)
-        ax.text(len(np.asarray(runs)[0]) * 0.98, target + 0.03, f"точный ответ {target:.2f}",
-                ha="right", va="bottom", fontsize=11)
+        ax.axhline(target, color="black", ls="--", lw=1.5, label=f"точный ответ {target:.2f}")
+        ax.legend(loc="best", fontsize=11, framealpha=0.95)
     ax.set_ylim(-0.03, 1.03); ax.grid(alpha=0.3)
     ax.set_xlabel("эпизод", fontsize=12); ax.set_ylabel(ylabel, fontsize=12)
     ax.tick_params(labelsize=11)
@@ -161,11 +160,11 @@ def plot_lengths(curves, ax=None, title="", color=C_AGENT, window=10):
     smooth = np.array([np.convolve(c, kernel, mode="valid") for c in curves])
     episodes = np.arange(window, curves.shape[1] + 1)
     for run in smooth:
-        ax.plot(episodes, run, color=color, lw=1, alpha=0.35)
-    ax.plot(episodes, np.median(smooth, axis=0), color=color, lw=3, label="медиана по запускам")
-    ax.axhline(500, color=C_GREY, ls="--", lw=1)
+        ax.plot(episodes, run, color=color, lw=1.2, alpha=0.5, zorder=3)
+    ax.plot(episodes, np.median(smooth, axis=0), color=color, lw=3, label="медиана по запускам", zorder=4)
+    ax.axhline(500, color=C_GREY, ls="--", lw=1, zorder=1)
     ax.text(episodes[-1], 485, "лимит 500", fontsize=11, color=C_GREY, va="top", ha="right")
-    ax.set_ylim(0, 520); ax.grid(alpha=0.3)
+    ax.set_ylim(0, 530); ax.grid(alpha=0.3)
     ax.set_xlabel("эпизод", fontsize=12); ax.set_ylabel("шагов до подъёма", fontsize=12)
     ax.tick_params(labelsize=11)
     ax.legend(loc="lower left", fontsize=11)
@@ -173,7 +172,7 @@ def plot_lengths(curves, ax=None, title="", color=C_AGENT, window=10):
     return ax
 
 
-def animate_acrobot(states, actions=None, path="acrobot.gif", every=4, fps=12):
+def animate_acrobot(states, actions=None, path="acrobot.gif", every=2, fps=12):
     """GIF эпизода по списку состояний (кадр на каждый every-й шаг); возвращает IPython Image."""
     import io
     from PIL import Image as PILImage
@@ -184,11 +183,11 @@ def animate_acrobot(states, actions=None, path="acrobot.gif", every=4, fps=12):
     if steps[-1] != len(states) - 1:
         steps.append(len(states) - 1)
     for k in steps:
-        fig, ax = plt.subplots(figsize=(3.6, 3.6))
+        fig, ax = plt.subplots(figsize=(4, 4))
         action = actions[k] if actions is not None and k < len(actions) else None
         draw_acrobot(states[k], ax=ax, title=f"шаг {k}", action=action)
         buf = io.BytesIO()
-        fig.savefig(buf, format="png", dpi=60)
+        fig.savefig(buf, format="png", dpi=80)
         plt.close(fig)
         buf.seek(0)
         frames.append(PILImage.open(buf).convert("P", palette=PILImage.ADAPTIVE))
