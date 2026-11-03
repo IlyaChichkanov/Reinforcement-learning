@@ -547,6 +547,76 @@ def reinforce_corridor():
 
 ALL.update({"reinforce_corridor": reinforce_corridor})
 
+
+# --------------------------------------------------------------------------- лекция 5: CartPole, обученная сеть
+sys.path.insert(0, str(ROOT / "05-policy-gradient" / "seminar"))
+from cartpole_plots import draw_cartpole  # noqa: E402
+
+
+def _train_cartpole_net(seed, n_episodes=300, lr=0.003, gamma=0.99):
+    """REINFORCE с вычитанием среднего для сети 4 → 32 → 2 — тот же код и те же настройки, что в разделе 5 лекции."""
+    import torch
+    torch.manual_seed(seed); rng = np.random.default_rng(seed)
+    net = torch.nn.Sequential(torch.nn.Linear(4, 32), torch.nn.Tanh(), torch.nn.Linear(32, 2))
+    opt = torch.optim.Adam(net.parameters(), lr=lr)
+    env = gym.make("CartPole-v1")
+    b, n = 0.0, 0
+    for episode in range(n_episodes):
+        s, _ = env.reset(seed=seed * 10_000 + episode)
+        states, actions, rewards = [], [], []
+        while True:
+            with torch.no_grad():
+                p_right = torch.softmax(net(torch.as_tensor(s, dtype=torch.float32)), dim=-1)[1].item()
+            a = int(rng.random() < p_right)
+            s2, r, terminated, truncated, _ = env.step(a)
+            states.append(s); actions.append(a); rewards.append(r); s = s2
+            if terminated or truncated:
+                break
+        T = len(rewards)
+        G, acc = np.zeros(T), 0.0
+        for t in reversed(range(T)):
+            acc = rewards[t] + gamma * acc; G[t] = acc
+        logits = net(torch.as_tensor(np.array(states), dtype=torch.float32))
+        log_probs = torch.log_softmax(logits, dim=-1)[torch.arange(T), torch.as_tensor(actions)]
+        weights = torch.as_tensor(gamma ** np.arange(T) * (G - b), dtype=torch.float32)
+        loss = -(weights * log_probs).sum()
+        opt.zero_grad(); loss.backward(); opt.step()
+        for g in G:
+            n += 1; b += (g - b) / n
+    return net
+
+
+def cartpole_trained(seed=3, episode_seed=0, every=5):
+    """Обученная сеть держит шест: в каждом состоянии — действие с большей вероятностью; кадр на каждый every-й шаг."""
+    import torch
+    net = _train_cartpole_net(seed)
+    env = gym.make("CartPole-v1")
+    s, _ = env.reset(seed=episode_seed)
+    states, actions = [s], []
+    while True:
+        with torch.no_grad():
+            a = int(net(torch.as_tensor(s, dtype=torch.float32)).argmax())
+        s, _, terminated, truncated, _ = env.step(a)
+        states.append(s); actions.append(a)
+        if terminated or truncated:
+            break
+    print(f"обученная сеть (seed {seed}): шест простоял {len(actions)} шагов")
+    steps = list(range(0, len(actions), every))
+    fig, ax = plt.subplots(figsize=(6.2, 2.9))
+
+    def frame(i):
+        ax.clear()
+        k = steps[i]
+        draw_cartpole(states[k], ax=ax, action=actions[k],
+                      title=f"обученная сеть, шаг {k} из {len(actions)}")
+        fig.tight_layout()
+
+    _save(FuncAnimation(fig, frame, frames=len(steps), interval=100), "cartpole_trained", fps=12)
+    plt.close(fig)
+
+
+ALL.update({"cartpole_trained": cartpole_trained})
+
 if __name__ == "__main__":
     names = sys.argv[1:] or list(ALL)
     for n in names:
