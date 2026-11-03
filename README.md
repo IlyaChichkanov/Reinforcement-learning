@@ -42,7 +42,7 @@
 <td>5</td>
 <td>31.10</td>
 <td>Основные алгоритмы RL: policy based — градиент стратегии и REINFORCE</td>
-<td><a href="05-policy-gradient/lecture/lecture.ipynb">лекция</a> · <a href="05-policy-gradient/seminar/seminar.ipynb">семинар</a> · <a href="https://ilyachichkanov.github.io/Reinforcement-learning/lecture05.html">страница с вопросами и песочницей</a> · <a href="https://ilyachichkanov.github.io/Reinforcement-learning/">квиз</a></td>
+<td><a href="05-policy-gradient/lecture/lecture.ipynb">лекция</a> · <a href="05-policy-gradient/seminar/seminar.ipynb">семинар</a> · <a href="https://ilyachichkanov.github.io/Reinforcement-learning/lecture05.html">страница с вопросами и песочницей</a> · <a href="homeworks/hw3/homework.ipynb">дз блока 3</a> · <a href="https://ilyachichkanov.github.io/Reinforcement-learning/">квиз</a></td>
 </tr>
 <tr>
 <td>6</td>
@@ -126,11 +126,11 @@
 * `lecture/` — конспект лекции в виде ноутбука (теория, вывод формул, иногда мини-демо)
 * `seminar/` — ноутбук для занятия: разбор кода и эксперименты вживую
 
-Домашние задания лежат отдельно, в [`homeworks/`](homeworks/): одно задание на блок из двух лекций.
+Домашние задания лежат отдельно, в [`homeworks/`](homeworks/): одно задание на блок (в блоке 3 — по одной лекции 5).
 
 ### Домашние задания
 
-Домашка выдаётся **раз в две недели** и охватывает обе лекции блока: [`homeworks/hw1/homework.ipynb`](homeworks/hw1/homework.ipynb) — по лекциям 1–2 (Cross-Entropy, оценка политики, своя среда, уравнения Беллмана). [`homeworks/hw2/homework.ipynb`](homeworks/hw2/homework.ipynb) — по лекциям 3–4 (Q-learning и SARSA на озере, такси по чужому логу, Expected SARSA, горная машина на сетке). Часть проверок оформлена как `assert`, чтобы можно было проверить себя локально. Как сдавать — в [`homeworks/README.md`](homeworks/README.md).
+Домашка выдаётся **раз в две недели** и охватывает обе лекции блока: [`homeworks/hw1/homework.ipynb`](homeworks/hw1/homework.ipynb) — по лекциям 1–2 (Cross-Entropy, оценка политики, своя среда, уравнения Беллмана). [`homeworks/hw2/homework.ipynb`](homeworks/hw2/homework.ipynb) — по лекциям 3–4 (Q-learning и SARSA на озере, такси по чужому логу, Expected SARSA, горная машина на сетке). [`homeworks/hw3/homework.ipynb`](homeworks/hw3/homework.ipynb) — по лекции 5 (точная лучшая стратегия в коридоре с неразличимыми клетками и REINFORCE, который к ней приходит; стратегия-нейросеть на Acrobot с вычитанием среднего и без). Часть проверок оформлена как `assert`, чтобы можно было проверить себя локально. Как сдавать — в [`homeworks/README.md`](homeworks/README.md).
 
 Задачи семинаров — репетиция домашки: те же функции на знакомой среде. Решения семинаров лежат в [`solutions/`](solutions/).
 
