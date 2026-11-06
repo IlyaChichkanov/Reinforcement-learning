@@ -47,8 +47,8 @@
 <tr>
 <td>6</td>
 <td>29.09</td>
-<td>Введение в Deep Reinforcement Learning</td>
-<td></td>
+<td>Введение в Deep Reinforcement Learning: ценность без таблицы — аппроксимация и смертельная триада</td>
+<td><a href="06-approximation/lecture/lecture.ipynb">лекция</a> · <a href="https://ilyachichkanov.github.io/Reinforcement-learning/lecture06.html">страница с вопросами и песочницей</a></td>
 </tr>
 <tr>
 <td>7</td>
