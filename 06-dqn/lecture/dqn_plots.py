@@ -419,14 +419,15 @@ def draw_replay_scheme(ax=None):
     from matplotlib.patches import FancyArrowPatch, Rectangle, FancyBboxPatch
     if ax is None:
         _, ax = plt.subplots(figsize=(12, 4.6))
-    n, w, y0, h = 12, 0.9, 2.6, 0.9
-    picked = {2, 5, 8, 10}
+    n, w, y0, h = 9, 1.3, 2.6, 1.0
+    picked = {1, 3, 5, 7}
     for k in range(n):
-        x = 0.6 + k
+        x = 0.6 + k * w
         face = "#f3c4c6" if k in picked else "#ffffff"
         ax.add_patch(Rectangle((x, y0), w, h, facecolor=face, edgecolor="k", lw=1.2))
-        ax.text(x + w / 2, y0 + h / 2, "s, a, r,\ns′, конец", ha="center", va="center", fontsize=8.5)
-    ax.text(0.6 + n / 2 - 0.05, y0 + h + 0.55, "буфер опыта — журнал на 50 000 переходов", ha="center", fontsize=13, weight="bold")
+        ax.text(x + w / 2, y0 + h / 2, "s, a, r,\ns′, конец", ha="center", va="center", fontsize=9.5)
+    n = n * w                                                            # дальше n — ширина ряда
+    ax.text(0.6 + n / 2, y0 + h + 0.55, "буфер опыта — журнал на 50 000 переходов", ha="center", fontsize=13, weight="bold")
     # новый переход справа
     ax.add_patch(FancyArrowPatch((n + 1.6, y0 + h / 2), (n + 0.65, y0 + h / 2), arrowstyle="-|>", mutation_scale=22, lw=2.5, color=C_ENV))
     ax.text(n + 1.7, y0 + h / 2, "новый переход\n(после каждого шага в среде)", va="center", fontsize=11, color=C_ENV)
@@ -437,8 +438,8 @@ def draw_replay_scheme(ax=None):
     bx, by, bw, bh = 3.6, 0.35, 5.0, 0.85
     ax.add_patch(FancyBboxPatch((bx, by), bw, bh, boxstyle="round,pad=0.08", facecolor="#f3c4c6", edgecolor=C_ACCENT, lw=2))
     ax.text(bx + bw / 2, by + bh / 2, "пачка: 64 случайных перехода", ha="center", va="center", fontsize=12, color=C_ACCENT, weight="bold")
-    for k in picked:
-        ax.add_patch(FancyArrowPatch((0.6 + k + w / 2, y0), (bx + bw * (0.15 + 0.7 * (k - 2) / 8), by + bh + 0.08),
+    for j, k in enumerate(sorted(picked)):
+        ax.add_patch(FancyArrowPatch((0.6 + k * w + w / 2, y0), (bx + bw * (0.15 + 0.7 * j / 3), by + bh + 0.08),
                                      arrowstyle="-|>", mutation_scale=16, lw=1.6, color=C_ACCENT,
                                      connectionstyle="arc3,rad=0.0"))
     ax.add_patch(FancyArrowPatch((bx + bw + 0.15, by + bh / 2), (bx + bw + 1.3, by + bh / 2), arrowstyle="-|>", mutation_scale=22, lw=2.5, color=C_AGENT))
