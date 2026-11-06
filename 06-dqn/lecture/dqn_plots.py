@@ -38,6 +38,12 @@
     plot_grid_2x2(lengths, q_max, window=10)    четыре панели «буфер да/нет × целевая сеть да/нет»; lengths и q_max — словари по названиям вариантов
     plot_q_lag(trace, ax=None, title="", window=None)   оценка старта основной и целевой сети по шагам; trace — (шаги, 2)
     plot_buffer(episode_of, picked, ax=None, title="")   журнал полосой: episode_of — номер эпизода каждой записи, picked — номера записей пачки
+
+Эпизоды и схемы
+    random_episode(seed=0)                      список состояний одного эпизода случайной стратегии
+    play_greedy(qnet, seed=0)                   список состояний эпизода по сети без случайных шагов
+    draw_replay_scheme(ax=None)                 схема буфера опыта: слоты, новый переход, старый выбрасывается, пачка
+    draw_two_states(gamma=0.9, alpha=0.1, steps=3, w0=1.0, ax=None)   пример «w и 2w»: схема и первые шаги обновления
 """
 import numpy as np
 import matplotlib.pyplot as plt
@@ -377,3 +383,110 @@ def plot_buffer(episode_of, picked, ax=None, title=""):
     ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.5), fontsize=11, ncol=2, frameon=False)
     ax.set_title(title, fontsize=12)
     return ax
+
+
+# ---------------------------------------------------------------------------------------------- ревизия 06.11 №3
+def random_episode(seed=0):
+    """Один эпизод случайной стратегии: список состояний от старта до конца."""
+    env, rng = make_cartpole(), np.random.default_rng(seed)
+    s, _ = env.reset(seed=seed)
+    states = [s]
+    while True:
+        s, _, terminated, truncated, _ = env.step(int(rng.integers(2)))
+        states.append(s)
+        if terminated or truncated:
+            return states
+
+
+def play_greedy(qnet, seed=0):
+    """Эпизод по сети без случайных шагов: в каждом состоянии — действие с наибольшим Q; список состояний."""
+    import torch
+    env = make_cartpole()
+    s, _ = env.reset(seed=seed)
+    states = [s]
+    while True:
+        with torch.no_grad():
+            a = int(qnet(torch.as_tensor(s)).argmax())
+        s, _, terminated, truncated, _ = env.step(a)
+        states.append(s)
+        if terminated or truncated:
+            return states
+
+
+def draw_replay_scheme(ax=None):
+    """Схема буфера опыта: ряд слотов с переходами, новый переход входит справа, самый старый выбрасывается слева,
+    случайные слоты собираются в пачку для шага градиента."""
+    from matplotlib.patches import FancyArrowPatch, Rectangle, FancyBboxPatch
+    if ax is None:
+        _, ax = plt.subplots(figsize=(12, 4.6))
+    n, w, y0, h = 12, 0.9, 2.6, 0.9
+    picked = {2, 5, 8, 10}
+    for k in range(n):
+        x = 0.6 + k
+        face = "#f3c4c6" if k in picked else "#ffffff"
+        ax.add_patch(Rectangle((x, y0), w, h, facecolor=face, edgecolor="k", lw=1.2))
+        ax.text(x + w / 2, y0 + h / 2, "s, a, r,\ns′, конец", ha="center", va="center", fontsize=8.5)
+    ax.text(0.6 + n / 2 - 0.05, y0 + h + 0.55, "буфер опыта — журнал на 50 000 переходов", ha="center", fontsize=13, weight="bold")
+    # новый переход справа
+    ax.add_patch(FancyArrowPatch((n + 1.6, y0 + h / 2), (n + 0.65, y0 + h / 2), arrowstyle="-|>", mutation_scale=22, lw=2.5, color=C_ENV))
+    ax.text(n + 1.7, y0 + h / 2, "новый переход\n(после каждого шага в среде)", va="center", fontsize=11, color=C_ENV)
+    # самый старый слева
+    ax.add_patch(FancyArrowPatch((0.55, y0 + h / 2), (-0.5, y0 + h / 2), arrowstyle="-|>", mutation_scale=22, lw=2.5, color=C_GREY))
+    ax.text(-0.55, y0 + h / 2, "самый старый\nвыбрасывается", ha="right", va="center", fontsize=11, color=C_GREY)
+    # пачка
+    bx, by, bw, bh = 3.6, 0.35, 5.0, 0.85
+    ax.add_patch(FancyBboxPatch((bx, by), bw, bh, boxstyle="round,pad=0.08", facecolor="#f3c4c6", edgecolor=C_ACCENT, lw=2))
+    ax.text(bx + bw / 2, by + bh / 2, "пачка: 64 случайных перехода", ha="center", va="center", fontsize=12, color=C_ACCENT, weight="bold")
+    for k in picked:
+        ax.add_patch(FancyArrowPatch((0.6 + k + w / 2, y0), (bx + bw * (0.15 + 0.7 * (k - 2) / 8), by + bh + 0.08),
+                                     arrowstyle="-|>", mutation_scale=16, lw=1.6, color=C_ACCENT,
+                                     connectionstyle="arc3,rad=0.0"))
+    ax.add_patch(FancyArrowPatch((bx + bw + 0.15, by + bh / 2), (bx + bw + 1.3, by + bh / 2), arrowstyle="-|>", mutation_scale=22, lw=2.5, color=C_AGENT))
+    ax.text(bx + bw + 1.4, by + bh / 2, "шаг градиента\nпо 64 целям y", va="center", fontsize=12, color=C_AGENT)
+    ax.set_xlim(-3.6, n + 5.4); ax.set_ylim(-0.1, y0 + h + 1.0); ax.axis("off")
+    return ax
+
+
+def draw_two_states(gamma=0.9, alpha=0.1, steps=3, w0=1.0, ax=None):
+    """Пример «w и 2w»: слева схема двух состояний с оценками от одной ручки w, справа — первые шаги обновления:
+    цель 2γw всегда выше оценки w, и после шага растут обе."""
+    from matplotlib.patches import Circle, FancyArrowPatch
+    if ax is None:
+        fig, axes = plt.subplots(1, 2, figsize=(13, 4.2), gridspec_kw={"width_ratios": [1.1, 1.3]})
+    else:
+        axes = ax
+    a = axes[0]
+    for x, name in ((1.0, "1"), (3.2, "2")):
+        a.add_patch(Circle((x, 2.2), 0.42, facecolor="#ffffff", edgecolor="k", lw=1.6))
+        a.text(x, 2.2, name, ha="center", va="center", fontsize=15, weight="bold")
+    a.add_patch(FancyArrowPatch((1.45, 2.2), (2.75, 2.2), arrowstyle="-|>", mutation_scale=20, lw=2.2, color=C_ENV))
+    a.text(2.1, 2.42, "r = 0", ha="center", fontsize=12, color=C_ENV)
+    a.text(2.1, 1.98, "есть в данных", ha="center", fontsize=10, color=C_ENV)
+    a.add_patch(FancyArrowPatch((3.65, 2.2), (4.95, 2.2), arrowstyle="-|>", mutation_scale=20, lw=2.2, color=C_GREY, ls="--"))
+    a.text(4.3, 2.42, "r = 0", ha="center", fontsize=12, color=C_GREY)
+    a.text(4.3, 1.98, "в данных нет", ha="center", fontsize=10, color=C_GREY)
+    a.text(5.25, 2.2, "конец", va="center", fontsize=12, color=C_GREY)
+    # столбики оценок
+    for x, val, label in ((1.0, w0, "v̂(1) = w"), (3.2, 2 * w0, "v̂(2) = 2w")):
+        a.add_patch(plt.Rectangle((x - 0.3, 0.2), 0.6, 0.55 * val, facecolor=C_AGENT, edgecolor="k"))
+        a.text(x, 0.2 + 0.55 * val + 0.08, label, ha="center", fontsize=12)
+    a.text(2.1, 0.05, "одна ручка w двигает обе оценки — вторую вдвое сильнее", ha="center", fontsize=11, color=C_AGENT)
+    a.set_xlim(0.3, 6.0); a.set_ylim(-0.1, 2.9); a.axis("off")
+    a.set_title("две оценки — один вес", fontsize=12)
+    # справа: шаги
+    b = axes[1]
+    w = w0
+    xs = np.arange(steps)
+    for k in range(steps):
+        target = 2 * gamma * w
+        b.bar(k - 0.18, w, 0.34, color=C_AGENT, label="оценка v̂(1) = w" if k == 0 else None)
+        b.bar(k + 0.18, target, 0.34, color=C_REWARD, label=f"цель γ·v̂(2) = {2 * gamma:.1f}·w" if k == 0 else None)
+        b.text(k - 0.18, w + 0.03, f"{w:.2f}", ha="center", fontsize=11)
+        b.text(k + 0.18, target + 0.03, f"{target:.2f}", ha="center", fontsize=11, color=C_REWARD)
+        w = w + alpha * (target - w)
+    b.set_xticks(xs); b.set_xticklabels([f"шаг {k + 1}" for k in xs], fontsize=12)
+    b.set_ylim(0, 2.5 * gamma * w0 * (1 + alpha * (2 * gamma - 1)) ** steps + 0.3)
+    b.set_ylabel("значение", fontsize=12); b.tick_params(labelsize=11); b.grid(axis="y", alpha=0.3)
+    b.legend(loc="upper left", fontsize=11)
+    b.set_title(f"каждый шаг: оценка тянется к цели, а цель всегда в {2 * gamma:.1f} раза выше", fontsize=12)
+    return axes
