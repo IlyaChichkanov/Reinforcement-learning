@@ -36,7 +36,7 @@
     plot_q_plane(V, ax=None, title="", vmax=None)
     plot_batch_sources(sources, episode, ax=None, title="")   из каких эпизодов пришли переходы пачки: {подпись: номера эпизодов}
     plot_grid_2x2(lengths, q_max, window=10)    четыре панели «буфер да/нет × целевая сеть да/нет»; lengths и q_max — словари по названиям вариантов
-    plot_q_lag(q_main, q_target, ax=None, title="")   оценка старта основной и целевой сети по эпизодам
+    plot_q_lag(trace, ax=None, title="", window=None)   оценка старта основной и целевой сети по шагам; trace — (шаги, 2)
 """
 import numpy as np
 import matplotlib.pyplot as plt
@@ -310,7 +310,7 @@ def plot_batch_sources(sources, episode, ax=None, title=""):
         _, ax = plt.subplots(figsize=(7.5, 3.6))
     bins = np.arange(0, episode + 2, max(1, (episode + 1) // 30))
     for k, (name, eps) in enumerate(sources.items()):
-        ax.hist(eps, bins=bins, color=_color(name, k), alpha=0.75, label=f"{name}: {len(eps)} переходов")
+        ax.hist(eps, bins=bins, color=_color(name, k), alpha=0.75, label=name)
     ax.axvline(episode, color="k", ls="--", lw=1)
     ax.text(episode, ax.get_ylim()[1] * 0.95, f"текущий эпизод {episode}", ha="right", va="top", fontsize=11)
     ax.set_xlabel("из какого эпизода переход", fontsize=12); ax.set_ylabel("переходов в пачке", fontsize=12)
@@ -329,8 +329,8 @@ def plot_grid_2x2(lengths, q_max, window=10):
             name, ax = names[r][c], axes[r, c]
             plot_runs({name: lengths[name]}, ax=ax, window=window)
             ax.legend_.remove()
-            q = ", ".join(str(int(v)) for v in q_max[name])
-            ax.text(0.98, 0.95, f"max Q старта: {q}", transform=ax.transAxes, ha="right", va="top", fontsize=12,
+            q = ", ".join(str(int(round(v))) for v in q_max[name])
+            ax.text(0.03, 0.95, f"max Q старта: {q}", transform=ax.transAxes, ha="left", va="top", fontsize=12,
                     bbox=dict(facecolor="white", edgecolor=_color(name, 0), lw=2))
             ax.set_title(name, fontsize=13, color=_color(name, 0), weight="bold")
             if r == 0:
@@ -341,13 +341,18 @@ def plot_grid_2x2(lengths, q_max, window=10):
     return axes
 
 
-def plot_q_lag(q_main, q_target, ax=None, title=""):
-    """Оценка старта основной сети и целевой по эпизодам одного запуска DQN: копия отстаёт и сглаживает."""
+def plot_q_lag(trace, ax=None, title="", window=None):
+    """Оценка стартового состояния по шагам обучения: основная сеть и её копия (trace — массив (шаги, 2)).
+
+    window — (от, до): показать только этот отрезок шагов, чтобы разглядеть, как копия отстаёт."""
     if ax is None:
         _, ax = plt.subplots(figsize=(7.5, 3.8))
-    ax.plot(q_main, color=C_AGENT, lw=1.5, label="основная сеть — её мы учим")
-    ax.plot(q_target, color=C_ACCENT, lw=2.5, label="целевая сеть — копия, считает цель y")
-    ax.set_xlabel("эпизод", fontsize=12); ax.set_ylabel("max Q в стартовом состоянии", fontsize=12)
+    trace = np.asarray(trace, dtype=float)
+    lo, hi = window if window else (0, len(trace))
+    steps = np.arange(lo, hi)
+    ax.plot(steps, trace[lo:hi, 0], color=C_AGENT, lw=1.2, label="основная сеть — её мы учим")
+    ax.plot(steps, trace[lo:hi, 1], color=C_ACCENT, lw=2.5, label="целевая сеть — копия, считает цель y")
+    ax.set_xlabel("шаг обучения", fontsize=12); ax.set_ylabel("max Q в стартовом состоянии", fontsize=12)
     ax.tick_params(labelsize=11); ax.grid(alpha=0.3)
     ax.legend(loc="upper left", fontsize=11)
     ax.set_title(title, fontsize=12)
