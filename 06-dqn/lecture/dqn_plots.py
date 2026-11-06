@@ -37,6 +37,7 @@
     plot_batch_sources(sources, episode, ax=None, title="")   из каких эпизодов пришли переходы пачки: {подпись: номера эпизодов}
     plot_grid_2x2(lengths, q_max, window=10)    четыре панели «буфер да/нет × целевая сеть да/нет»; lengths и q_max — словари по названиям вариантов
     plot_q_lag(trace, ax=None, title="", window=None)   оценка старта основной и целевой сети по шагам; trace — (шаги, 2)
+    plot_buffer(episode_of, picked, ax=None, title="")   журнал полосой: episode_of — номер эпизода каждой записи, picked — номера записей пачки
 """
 import numpy as np
 import matplotlib.pyplot as plt
@@ -355,5 +356,24 @@ def plot_q_lag(trace, ax=None, title="", window=None):
     ax.set_xlabel("шаг обучения", fontsize=12); ax.set_ylabel("max Q в стартовом состоянии", fontsize=12)
     ax.tick_params(labelsize=11); ax.grid(alpha=0.3)
     ax.legend(loc="upper left", fontsize=11)
+    ax.set_title(title, fontsize=12)
+    return ax
+
+
+def plot_buffer(episode_of, picked, ax=None, title=""):
+    """Журнал переходов полосой: столбик — запись, цвет — номер эпизода; красные метки — пачка, оранжевая — последняя запись."""
+    if ax is None:
+        _, ax = plt.subplots(figsize=(12, 2.9))
+    episode_of = np.asarray(episode_of)
+    n, last = len(episode_of), episode_of.max()
+    ax.imshow(episode_of[None, :], aspect="auto", cmap="Blues", vmin=-0.3 * last, vmax=1.6 * last,
+              extent=(0, n, 0, 1), interpolation="nearest")
+    ax.vlines(np.asarray(picked) + 0.5, 0, 1, color=C_ACCENT, lw=1.8, label="64 случайные записи — пачка из буфера")
+    ax.vlines([n - 1], 0, 1, color=C_REWARD, lw=5, label="последняя запись — по шагу подряд")
+    starts = [int(np.argmax(episode_of == e)) for e in range(0, last + 1, 50)]
+    ax.set_xticks(starts); ax.set_xticklabels([f"эпизод {e}" for e in range(0, last + 1, 50)], fontsize=11)
+    ax.set_yticks([]); ax.set_xlim(0, n)
+    ax.set_xlabel(f"записи журнала: {n} переходов, слева старые, справа новые", fontsize=12)
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.5), fontsize=11, ncol=2, frameon=False)
     ax.set_title(title, fontsize=12)
     return ax
