@@ -35,6 +35,15 @@ LOW = np.array([-2.4, -3.0, -0.21, -3.5])
 HIGH = -LOW
 MAX_STEPS = 500
 
+# один цвет у варианта на всех картинках лекции
+COLORS = {"таблица 6⁴": C_GREY, "по шагу подряд": C_REWARD, "буфер": C_ACCENT,
+          "целевая сеть": C_ENV, "DQN": C_AGENT, "буфер + целевая сеть (DQN)": C_AGENT}
+_SPARE = ["#8172B3", "#937860", "#DA8BC3"]
+
+
+def _color(name, k):
+    return COLORS.get(name, _SPARE[k % len(_SPARE)])
+
 
 def make_cartpole():
     import gymnasium as gym
@@ -133,17 +142,16 @@ def plot_runs(curves, ax=None, title="", window=10):
     """Длины эпизодов нескольких вариантов: тонкие линии — запуски, жирная — медиана по запускам."""
     if ax is None:
         _, ax = plt.subplots(figsize=(8, 4))
-    colors = [C_GREY, C_REWARD, C_ACCENT, C_AGENT, C_ENV]
     kernel = np.ones(window) / window
-    for (name, runs), color in zip(curves.items(), colors):
+    for k, (name, runs) in enumerate(curves.items()):
+        color = _color(name, k)
         runs = np.atleast_2d(np.asarray(runs, dtype=float))
         smooth = np.array([np.convolve(r, kernel, mode="valid") for r in runs])
         episodes = np.arange(window, runs.shape[1] + 1)
         for run in smooth:
             ax.plot(episodes, run, color=color, lw=1, alpha=0.3)
         ax.plot(episodes, np.median(smooth, axis=0), color=color, lw=3, label=name)
-    ax.axhline(MAX_STEPS, color="k", ls="--", lw=1, zorder=0)
-    ax.text(window, MAX_STEPS - 12, "максимум 500", fontsize=11, va="top")
+    ax.axhline(MAX_STEPS, color="k", ls="--", lw=1, zorder=0, label="максимум 500")
     ax.set_ylim(0, 520); ax.grid(alpha=0.3)
     ax.set_xlabel("эпизод", fontsize=12); ax.set_ylabel("сколько шагов простоял шест", fontsize=12)
     ax.tick_params(labelsize=11)
@@ -156,14 +164,13 @@ def plot_q_start(curves, ax=None, title="", gamma=0.99):
     """Оценка Q в стартовом состоянии по эпизодам; выше 1 / (1 − γ) настоящая ценность быть не может."""
     if ax is None:
         _, ax = plt.subplots(figsize=(8, 4))
-    colors = [C_GREY, C_REWARD, C_ACCENT, C_AGENT, C_ENV]
-    for (name, runs), color in zip(curves.items(), colors):
+    for k, (name, runs) in enumerate(curves.items()):
+        color = _color(name, k)
         runs = np.atleast_2d(np.abs(np.asarray(runs, dtype=float)))
         for run in runs:
             ax.plot(run, color=color, lw=1, alpha=0.3)
         ax.plot(np.median(runs, axis=0), color=color, lw=3, label=name)
-    ax.axhline(1 / (1 - gamma), color="k", ls="--", lw=1.2)
-    ax.text(2, 1 / (1 - gamma) * 1.15, "больше 1 + 0.99 + 0.99² + … = 100 быть не может", fontsize=11, va="bottom")
+    ax.axhline(1 / (1 - gamma), color="k", ls="--", lw=1.2, label="предел 1 + 0.99 + 0.99² + … = 100")
     ax.set_yscale("log"); ax.grid(alpha=0.3, which="major")
     ax.set_xlabel("эпизод", fontsize=12); ax.set_ylabel("max Q в стартовом состоянии", fontsize=12)
     ax.tick_params(labelsize=11)
