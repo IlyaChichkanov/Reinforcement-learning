@@ -47,13 +47,13 @@
 <tr>
 <td>6</td>
 <td>29.09</td>
-<td>Введение в Deep Reinforcement Learning: ценность без таблицы — аппроксимация и смертельная триада</td>
-<td><a href="06-approximation/lecture/lecture.ipynb">лекция</a> · <a href="https://ilyachichkanov.github.io/Reinforcement-learning/lecture06.html">страница с вопросами и песочницей</a></td>
+<td>Введение в Deep RL: нейросеть вместо таблицы — DQN (буфер опыта, целевая сеть, смертельная триада)</td>
+<td><a href="06-dqn/lecture/lecture.ipynb">лекция</a> · <a href="https://ilyachichkanov.github.io/Reinforcement-learning/lecture06.html">страница с вопросами и песочницей</a></td>
 </tr>
 <tr>
 <td>7</td>
 <td>06.10</td>
-<td>Deep Q-Network (DQN)</td>
+<td>DQN вошёл в лекцию 6; тему недели 7 объявит преподаватель</td>
 <td></td>
 </tr>
 <tr>
