@@ -25,6 +25,18 @@
         curves — словарь {подпись: массив (запуски, эпизоды) оценок Q старта}; шкала логарифмическая,
         пунктир — наибольшая возможная ценность 1 / (1 − γ) = 100
     plot_w_curves(curves, ax=None, title="")    пример «w и 2w»: оценка v̂(1) по шагам, шкала логарифмическая
+
+Картинки таблицы и сети на плоскости (φ, φ̇)
+    plane_cells(table, states)                  номера клеток (по φ, по φ̇) для списка состояний
+    plot_grid_episode(table, states, ax=None, title="")   сетка таблицы и точки одного эпизода; клетки, где побывал агент, закрашены
+    table_slice(Q, table, visits, x=0, x_dot=0) -> (V, N)  срез таблицы: V = max Q и число обновлений по клеткам (φ, φ̇)
+    neighbour_pair(V, N)                        пустая клетка и её самая обновляемая соседка — ((i, j), (i, j)) или None
+    plot_table_values(V, N, table, ax=None, title="", pair=None, vmax=None)   карта V среза; белые клетки не обновлялись; пара — ☆ и ★
+    q_plane(qnet, k=101)                        V = max Q сети по точкам плоскости — массив k × k
+    plot_q_plane(V, ax=None, title="", vmax=None)
+    plot_batch_sources(sources, episode, ax=None, title="")   из каких эпизодов пришли переходы пачки: {подпись: номера эпизодов}
+    plot_grid_2x2(lengths, q_max, window=10)    четыре панели «буфер да/нет × целевая сеть да/нет»; lengths и q_max — словари по названиям вариантов
+    plot_q_lag(q_main, q_target, ax=None, title="")   оценка старта основной и целевой сети по эпизодам
 """
 import numpy as np
 import matplotlib.pyplot as plt
@@ -191,5 +203,152 @@ def plot_w_curves(curves, ax=None, title=""):
     ax.set_xlabel("шаг обучения", fontsize=12); ax.set_ylabel("оценка v̂(1)", fontsize=12)
     ax.tick_params(labelsize=11); ax.grid(alpha=0.3, which="major")
     ax.legend(loc="lower left", fontsize=11)
+    ax.set_title(title, fontsize=12)
+    return ax
+
+
+# ---------------------------------------------------------------------------------------------- картинки §1–§5 (ревизия 06.11)
+def _grid_lines(ax, table):
+    """Линии сетки таблицы по углу и угловой скорости на плоскости (φ, φ̇)."""
+    for k in range(1, table.bins):
+        ax.axvline(LOW[2] + k * (HIGH[2] - LOW[2]) / table.bins, color=C_GREY, lw=0.8)
+        ax.axhline(LOW[3] + k * (HIGH[3] - LOW[3]) / table.bins, color=C_GREY, lw=0.8)
+
+
+def plane_cells(table, states):
+    """Номера клеток (по φ, по φ̇) для списка состояний — проекция сетки на плоскость (φ, φ̇)."""
+    idx = ((np.asarray(states, dtype=float)[:, 2:] - LOW[2:]) / (HIGH[2:] - LOW[2:]) * table.bins).astype(int)
+    return np.clip(idx, 0, table.bins - 1)
+
+
+def plot_grid_episode(table, states, ax=None, title=""):
+    """Состояния одного эпизода точками на плоскости (φ, φ̇), поверх — сетка таблицы; клетки, где побывал агент, закрашены."""
+    if ax is None:
+        _, ax = plt.subplots(figsize=(6.2, 4.4))
+    states = np.asarray(states, dtype=float)
+    cells = {tuple(c) for c in plane_cells(table, states)}
+    w = (HIGH[2:] - LOW[2:]) / table.bins
+    for i, j in cells:
+        ax.add_patch(plt.Rectangle((LOW[2] + i * w[0], LOW[3] + j * w[1]), w[0], w[1], facecolor=C_AGENT, alpha=0.18, edgecolor="none"))
+    _grid_lines(ax, table)
+    ax.plot(states[:, 2], states[:, 3], "-", color=C_GREY, lw=0.8, alpha=0.7)
+    ax.scatter(states[:, 2], states[:, 3], s=18, color=C_AGENT, zorder=3, label=f"{len(states)} состояний эпизода")
+    ax.plot(states[0, 2], states[0, 3], "o", ms=9, color=C_ENV, zorder=4, label="старт")
+    ax.set_xlim(LOW[2], HIGH[2]); ax.set_ylim(LOW[3], HIGH[3])
+    _plane_axes(ax)
+    ax.legend(loc="upper left", fontsize=11, framealpha=0.95)
+    ax.set_title(title or f"эпизод прошёл через {len(cells)} клеток из {table.bins ** 2} на этой плоскости", fontsize=12)
+    return ax
+
+
+def table_slice(Q, table, visits, x=0.0, x_dot=0.0):
+    """Срез таблицы при заданных x, ẋ: V = max_a Q и число обновлений по клеткам (φ, φ̇) — массивы bins × bins."""
+    base = np.array([x, x_dot, 0.0, 0.0])
+    i0 = ((base[:2] - LOW[:2]) / (HIGH[:2] - LOW[:2]) * table.bins).astype(int).clip(0, table.bins - 1)
+    V, N = np.zeros((table.bins, table.bins)), np.zeros((table.bins, table.bins), dtype=int)
+    for i in range(table.bins):
+        for j in range(table.bins):
+            c = int(np.ravel_multi_index((i0[0], i0[1], i, j), (table.bins,) * 4))
+            V[i, j], N[i, j] = Q[c].max(), visits[c]
+    return V, N
+
+
+def neighbour_pair(V, N):
+    """Клетка без обновлений, у которой соседка (по φ или φ̇) обновлялась чаще всех: ((i, j) пустая, (i, j) соседка)."""
+    best = None
+    for i, j in zip(*np.nonzero(N == 0)):
+        for di, dj in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            a, b = i + di, j + dj
+            if 0 <= a < N.shape[0] and 0 <= b < N.shape[1] and N[a, b] > 0 and (best is None or N[a, b] > N[best[1]]):
+                best = ((i, j), (a, b))
+    return best
+
+
+def plot_table_values(V, N, table, ax=None, title="", pair=None, vmax=None):
+    """Карта V = max Q по клеткам среза таблицы: белые клетки не обновлялись ни разу; пара клеток помечена ★ и ☆."""
+    if ax is None:
+        _, ax = plt.subplots(figsize=(6.2, 4.4))
+    shown = np.ma.masked_where(N.T == 0, V.T)                       # строки — φ̇, столбцы — φ
+    im = ax.imshow(shown, origin="lower", aspect="auto", cmap="viridis", vmin=0, vmax=vmax,
+                   extent=(LOW[2], HIGH[2], LOW[3], HIGH[3]))
+    ax.set_facecolor("white")
+    _grid_lines(ax, table)
+    w = (HIGH[2:] - LOW[2:]) / table.bins
+    if pair is not None:
+        for (i, j), marker, color in zip(pair, ("☆", "★"), ("k", "k")):
+            ax.text(LOW[2] + (i + 0.5) * w[0], LOW[3] + (j + 0.5) * w[1], marker, ha="center", va="center",
+                    fontsize=20, color=color)
+    _plane_axes(ax)
+    plt.colorbar(im, ax=ax).set_label("V = max Q (белые — ни одного обновления)", fontsize=11)
+    ax.set_title(title, fontsize=12)
+    return ax
+
+
+def q_plane(qnet, k=101):
+    """V = max_a Q_θ по точкам плоскости (φ, φ̇) при x = ẋ = 0 — массив k × k."""
+    import torch
+    points, shape = plane(k)
+    with torch.no_grad():
+        return qnet(torch.as_tensor(points)).max(dim=1).values.numpy().reshape(shape)
+
+
+def plot_q_plane(V, ax=None, title="", vmax=None):
+    """Карта V = max Q сети на плоскости (φ, φ̇): оценка есть в каждой точке."""
+    if ax is None:
+        _, ax = plt.subplots(figsize=(6.2, 4.4))
+    im = ax.imshow(V, origin="lower", aspect="auto", cmap="viridis", vmin=0, vmax=vmax,
+                   extent=(LOW[2], HIGH[2], LOW[3], HIGH[3]))
+    _plane_axes(ax)
+    plt.colorbar(im, ax=ax).set_label("V = max Q", fontsize=11)
+    ax.set_title(title, fontsize=12)
+    return ax
+
+
+def plot_batch_sources(sources, episode, ax=None, title=""):
+    """Из каких эпизодов пришли переходы одной пачки: гистограмма номеров эпизодов для каждого способа."""
+    if ax is None:
+        _, ax = plt.subplots(figsize=(7.5, 3.6))
+    bins = np.arange(0, episode + 2, max(1, (episode + 1) // 30))
+    for k, (name, eps) in enumerate(sources.items()):
+        ax.hist(eps, bins=bins, color=_color(name, k), alpha=0.75, label=f"{name}: {len(eps)} переходов")
+    ax.axvline(episode, color="k", ls="--", lw=1)
+    ax.text(episode, ax.get_ylim()[1] * 0.95, f"текущий эпизод {episode}", ha="right", va="top", fontsize=11)
+    ax.set_xlabel("из какого эпизода переход", fontsize=12); ax.set_ylabel("переходов в пачке", fontsize=12)
+    ax.tick_params(labelsize=11); ax.grid(alpha=0.3, axis="y")
+    ax.legend(loc="upper left", fontsize=11)
+    ax.set_title(title, fontsize=12)
+    return ax
+
+
+def plot_grid_2x2(lengths, q_max, window=10):
+    """Четыре варианта «буфер да/нет × целевая сеть да/нет»: в каждой панели кривые длин и наибольшая оценка старта."""
+    names = [["по шагу подряд", "целевая сеть"], ["буфер", "буфер + целевая сеть (DQN)"]]
+    fig, axes = plt.subplots(2, 2, figsize=(13, 7), sharex=True, sharey=True)
+    for r in range(2):
+        for c in range(2):
+            name, ax = names[r][c], axes[r, c]
+            plot_runs({name: lengths[name]}, ax=ax, window=window)
+            ax.legend_.remove()
+            q = ", ".join(str(int(v)) for v in q_max[name])
+            ax.text(0.98, 0.95, f"max Q старта: {q}", transform=ax.transAxes, ha="right", va="top", fontsize=12,
+                    bbox=dict(facecolor="white", edgecolor=_color(name, 0), lw=2))
+            ax.set_title(name, fontsize=13, color=_color(name, 0), weight="bold")
+            if r == 0:
+                ax.set_xlabel("")
+            if c == 1:
+                ax.set_ylabel("")
+    fig.tight_layout()
+    return axes
+
+
+def plot_q_lag(q_main, q_target, ax=None, title=""):
+    """Оценка старта основной сети и целевой по эпизодам одного запуска DQN: копия отстаёт и сглаживает."""
+    if ax is None:
+        _, ax = plt.subplots(figsize=(7.5, 3.8))
+    ax.plot(q_main, color=C_AGENT, lw=1.5, label="основная сеть — её мы учим")
+    ax.plot(q_target, color=C_ACCENT, lw=2.5, label="целевая сеть — копия, считает цель y")
+    ax.set_xlabel("эпизод", fontsize=12); ax.set_ylabel("max Q в стартовом состоянии", fontsize=12)
+    ax.tick_params(labelsize=11); ax.grid(alpha=0.3)
+    ax.legend(loc="upper left", fontsize=11)
     ax.set_title(title, fontsize=12)
     return ax
