@@ -14,7 +14,7 @@
         curves — словарь {подпись: значения при каждом x}; метрика против параметра
 
 Анимация
-    animate_cartpole(states, path="cartpole.gif", every=4, fps=12)
+    animate_cartpole(states, path="cartpole.gif", every=4, fps=12, dpi=60)
         GIF из списка состояний (кадр на каждый every-й шаг); возвращает IPython Image — показать через display()
 """
 import numpy as np
@@ -120,7 +120,7 @@ def plot_vs(x, curves, ax=None, xlabel="", ylabel="", title=""):
     return ax
 
 
-def animate_cartpole(states, path="cartpole.gif", every=4, fps=12):
+def animate_cartpole(states, path="cartpole.gif", every=4, fps=12, dpi=60):
     """GIF эпизода по списку состояний (кадр на каждый every-й шаг); возвращает IPython Image."""
     import io
     from PIL import Image as PILImage
@@ -134,7 +134,7 @@ def animate_cartpole(states, path="cartpole.gif", every=4, fps=12):
         fig, ax = plt.subplots(figsize=(5.4, 2.7))
         draw_cartpole(states[k], ax=ax, title=f"шаг {k}")
         buf = io.BytesIO()
-        fig.savefig(buf, format="png", dpi=60)
+        fig.savefig(buf, format="png", dpi=dpi)
         plt.close(fig)
         buf.seek(0)
         frames.append(PILImage.open(buf).convert("P", palette=PILImage.ADAPTIVE))
