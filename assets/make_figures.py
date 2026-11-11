@@ -1893,6 +1893,14 @@ def lecture05_qr():
     img = qrcode.make("https://ilyachichkanov.github.io/Reinforcement-learning/lecture05.html", box_size=8, border=2)
     img.resize((328, 328)).save(OUT / "lecture05_qr.png")
 
+
+def lecture06_qr():
+    """QR-код страницы-спутника лекции 6 (тот же размер, что у lecture05_qr.png)."""
+    import qrcode
+
+    img = qrcode.make("https://ilyachichkanov.github.io/Reinforcement-learning/lecture06.html", box_size=8, border=2)
+    img.resize((328, 328)).save(OUT / "lecture06_qr.png")
+
 if __name__ == "__main__":
     for fn in (agent_env_loop, ml_paradigms, rl_timeline, rl_origins, rl_taxonomy, mdp_gridworld, course_map, markov_chain, cem_loop,
                env_anatomy, wrapper_onion, reward_types, observation_vs_state, action_spaces, policy_types,
@@ -1901,6 +1909,6 @@ if __name__ == "__main__":
                recap_week2, model_vs_sample, running_mean, mc_vs_td, backup_diagrams, vi_vs_q_learning, eps_greedy,
                sarsa_vs_q, on_off_policy, value_based_map,
                ql_recap, update_shift, cliff_rules, max_bias, td_loss,
-               corridor_rules, lecture05_qr):
+               corridor_rules, lecture05_qr, lecture06_qr):
         fn()
         print("saved", fn.__name__)

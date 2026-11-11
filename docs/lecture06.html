@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Нейросеть вместо таблицы</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=PT+Sans:wght@400;700&family=PT+Serif:wght@700&family=PT+Mono&display=swap">
+<style>
+/* Макет: один столбец до 1060px; вкладки «Вопросы» и «Песочница»; крупная типографика для проектора. */
+:root {
+  --bg: #faf8f5;        /* тёплая бумага */
+  --surface: #ffffff;
+  --fg: #27231d;
+  --muted: #776f63;
+  --line: #e4ded4;
+  --accent: #c44e52;    /* акцент курса */
+  --ql: #4C72B0;        /* текущая кривая */
+  --sarsa: #DD8452;     /* запасной цвет */
+  --good: #2e7d32;
+  --good-bg: #e4f2e5;
+  --bar: #d8d2c6;
+  --cliff: #f3a9a9;
+  --goal: #a9dfa9;
+  --cell: #ffffff;
+  --cell-line: #c9c3b8;
+  --start: #eceae5;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #1c1a17; --surface: #262320; --fg: #ece7de; --muted: #a39a8b;
+  --line: #3a362f; --accent: #e07478; --ql: #5b8dd6; --sarsa: #d96f38;
+  --good: #7fc983; --good-bg: #27402a; --bar: #45413a;
+  --cliff: #6e3434; --goal: #2f5d33; --cell: #262320; --cell-line: #4a453d; --start: #343129;
+  color-scheme: dark;
+} }
+:root[data-theme="dark"] {
+  --bg: #1c1a17; --surface: #262320; --fg: #ece7de; --muted: #a39a8b;
+  --line: #3a362f; --accent: #e07478; --ql: #5b8dd6; --sarsa: #d96f38;
+  --good: #7fc983; --good-bg: #27402a; --bar: #45413a;
+  --cliff: #6e3434; --goal: #2f5d33; --cell: #262320; --cell-line: #4a453d; --start: #343129;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--fg);
+  font-family: "PT Sans", "Segoe UI", system-ui, sans-serif;
+  font-size: 17px; line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 48px;
+}
+.wrap { max-width: 1060px; margin: 0 auto; }
+header.top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; padding-block: 22px 6px; }
+h1 { font-family: "PT Serif", Georgia, serif; font-size: clamp(24px, 3.4vw, 34px); margin: 0; text-wrap: balance; }
+.sub { color: var(--muted); font-size: 15px; }
+nav.tabs { display: flex; gap: 8px; margin: 14px 0 20px; border-bottom: 1px solid var(--line); }
+nav.tabs button {
+  appearance: none; background: none; border: none; border-bottom: 3px solid transparent;
+  font: inherit; font-weight: 700; color: var(--muted); padding: 8px 14px 10px; cursor: pointer;
+}
+nav.tabs button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); }
+nav.tabs button:focus-visible, button:focus-visible, input:focus-visible, a:focus-visible
+  { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ---------- Вопросы ---------- */
+.qnav { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+.qnav button {
+  font: inherit; font-weight: 700; border: 1px solid var(--line); background: var(--surface);
+  color: var(--muted); border-radius: 8px; padding: 6px 12px; cursor: pointer;
+}
+.qnav button[aria-selected="true"] { color: var(--fg); border-color: var(--accent); }
+.q-topic { color: var(--muted); font-size: 15px; letter-spacing: 0.04em; text-transform: uppercase; }
+.q-text { font-family: "PT Serif", Georgia, serif; font-size: clamp(21px, 2.9vw, 32px); line-height: 1.3;
+  margin: 6px 0 20px; text-wrap: balance; }
+.opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px; }
+.opt {
+  display: flex; align-items: center; gap: 14px; text-align: left;
+  font: inherit; font-size: clamp(17px, 2vw, 22px);
+  background: var(--surface); color: var(--fg);
+  border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; cursor: pointer;
+}
+.opt .letter {
+  flex: none; width: 2em; height: 2em; display: grid; place-items: center;
+  border-radius: 50%; background: var(--bar); font-weight: 700; font-size: 0.9em;
+}
+.opt[data-picked="1"] { border-color: var(--ql); box-shadow: inset 0 0 0 1px var(--ql); }
+.opt[data-picked="1"] .letter { background: var(--ql); color: #fff; }
+.revealed .opt[data-correct="1"] { border-color: var(--good); background: var(--good-bg); }
+.revealed .opt[data-correct="1"] .letter { background: var(--good); color: #fff; }
+.verdict { min-height: 1.5em; margin: 14px 0 4px; font-weight: 700; }
+.explain { color: var(--muted); max-width: 46em; margin: 0; }
+.qactions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 18px; }
+.btn {
+  font: inherit; font-weight: 700; cursor: pointer;
+  border: 1px solid var(--line); border-radius: 8px;
+  background: var(--surface); color: var(--fg); padding: 9px 16px;
+}
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.hint { color: var(--muted); font-size: 15px; }
+
+/* счётчик рук */
+details.counter { margin-top: 26px; border-top: 1px solid var(--line); padding-top: 12px; }
+details.counter > summary { cursor: pointer; font-weight: 700; color: var(--muted); }
+.count-grid { display: grid; grid-template-columns: auto 1fr; gap: 10px 14px; align-items: center; margin-top: 14px; }
+.count-ctl { display: flex; align-items: center; gap: 6px; }
+.count-ctl input {
+  width: 4.2em; font: inherit; font-family: "PT Mono", monospace; text-align: center;
+  background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; padding: 5px;
+}
+.count-ctl button { font: inherit; font-weight: 700; width: 2.2em; height: 2.2em; border-radius: 6px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--fg); cursor: pointer; }
+.bar-row { min-width: 0; display: flex; align-items: center; gap: 10px; }
+.bar-track { flex: 1; min-width: 0; height: 26px; border-radius: 4px; background: none; position: relative; }
+.bar-fill { position: absolute; inset: 0 auto 0 0; width: 0%; border-radius: 4px; background: var(--bar);
+  transition: width 0.25s; }
+.revealed .bar-fill[data-correct="1"] { background: var(--good); }
+.bar-num { font-family: "PT Mono", monospace; font-variant-numeric: tabular-nums; min-width: 2.5em; }
+
+/* ---------- Песочница ---------- */
+.sand-controls { display: flex; flex-wrap: wrap; gap: 18px 28px; align-items: end; margin-bottom: 18px; }
+.ctl { display: grid; gap: 4px; }
+.ctl label { font-size: 15px; color: var(--muted); font-weight: 700; }
+.ctl output { font-family: "PT Mono", monospace; }
+.ctl input[type="range"] { width: 180px; accent-color: var(--accent); }
+.sand-note { color: var(--muted); font-size: 15px; max-width: 46em; margin: 0 0 16px; }
+.boards { display: grid; gap: 22px; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); align-items: start; }
+@media (max-width: 760px) { .boards { grid-template-columns: 1fr; } }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; min-width: 0; }
+.panel h3 { margin: 0 0 10px; font-size: 16px; }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 10px; font-size: 15px; }
+.legend .swatch { display: inline-block; width: 14px; height: 4px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+.stats { display: grid; grid-template-columns: auto 1fr 1fr; gap: 6px 14px; margin-top: 12px;
+  font-size: 15px; font-variant-numeric: tabular-nums; }
+.stats .h { color: var(--muted); font-weight: 700; }
+.stats .ql { color: var(--ql); font-weight: 700; }
+.stats .sarsa { color: var(--sarsa); font-weight: 700; }
+svg text { fill: var(--fg); font-family: "PT Sans", system-ui, sans-serif; }
+svg .mut { fill: var(--muted); }
+footer { margin-top: 44px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--line); padding-top: 14px; }
+footer a { color: inherit; }
+@media (prefers-reduced-motion: reduce) { .bar-fill { transition: none; } }
+/* лекция 6 */
+.sand-block { margin-bottom: 34px; }
+.sand-block h2 { font-family: "PT Serif", Georgia, serif; font-size: 22px; margin: 0 0 8px; }
+.ctl select { font: inherit; background: var(--surface); color: var(--fg); border: 1px solid var(--line);
+  border-radius: 6px; padding: 5px 8px; }
+.check { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; color: var(--fg); cursor: pointer; }
+.check input { width: 1.2em; height: 1.2em; accent-color: var(--accent); }
+.cells { font-family: "PT Mono", monospace; font-size: 15px; overflow-wrap: anywhere; margin: 8px 0 0; }
+.big { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.verdict-bad { color: var(--accent); }
+.verdict-good { color: var(--good); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <h1>Нейросеть вместо таблицы</h1>
+  <span class="sub">лекция 6 · курс RL, МИСИС · Q-сеть, буфер опыта, целевая сеть — DQN</span>
+</header>
+
+<nav class="tabs" role="tablist">
+  <button role="tab" id="tab-q" aria-selected="true" data-tab="questions">Вопросы</button>
+  <button role="tab" id="tab-s" aria-selected="false" data-tab="sandbox">Песочница</button>
+</nav>
+
+<!-- ================= ВОПРОСЫ ================= -->
+<section id="view-questions">
+  <div class="qnav" id="qnav" role="tablist" aria-label="Вопросы"></div>
+
+  <div id="qcard">
+    <div class="q-topic" id="q-topic"></div>
+    <p class="q-text" id="q-text"></p>
+    <div class="opts" id="q-opts"></div>
+    <p class="verdict" id="q-verdict"></p>
+    <p class="explain" id="q-explain" hidden></p>
+    <div class="qactions">
+      <button class="btn primary" id="q-reveal">Показать ответ</button>
+      <button class="btn" id="q-reset" title="Сбросить мой выбор и счётчик">Сбросить</button>
+      <span class="hint">Выберите вариант, проголосуйте в зале — потом открывайте ответ.</span>
+    </div>
+
+    <details class="counter" id="q-counter">
+      <summary>Счётчик рук (для ведущего)</summary>
+      <div class="count-grid" id="count-grid"></div>
+    </details>
+  </div>
+</section>
+
+<!-- ================= ПЕСОЧНИЦА ================= -->
+<section id="view-sandbox" hidden>
+
+  <div class="sand-block">
+    <h2>Пример «w и 2w»</h2>
+    <p class="sand-note">
+      Два состояния: 1 → 2 с наградой 0, из 2 — конец с наградой 0, настоящие ценности равны 0.
+      Начальные оценки v̂(1) = 1, v̂(2) = 2. Делаем 100 шагов обучения и смотрим на v̂(1).
+      Включены все три условия триады — оценка разлетается. Переключите любое одно и посмотрите, что изменится;
+      подвигайте γ и найдите порог.
+    </p>
+    <div class="sand-controls">
+      <div class="ctl">
+        <label for="gamma">γ: <output id="gamma-out">0.90</output></label>
+        <input type="range" id="gamma" min="0" max="1" step="0.01" value="0.9">
+      </div>
+      <div class="ctl">
+        <label for="alpha">α: <output id="alpha-out">0.10</output></label>
+        <input type="range" id="alpha" min="0.01" max="0.2" step="0.01" value="0.1">
+      </div>
+      <div class="ctl">
+        <label for="approx">оценка</label>
+        <select id="approx">
+          <option value="shared" selected>общий вес: v̂(1) = w, v̂(2) = 2w</option>
+          <option value="table">таблица: свой вес у каждого состояния</option>
+        </select>
+      </div>
+      <div class="ctl">
+        <label for="target">цель</label>
+        <select id="target">
+          <option value="td" selected>своя оценка: r + γ·v̂(2)</option>
+          <option value="mc">сумма наград эпизода: G = 0</option>
+        </select>
+      </div>
+      <div class="ctl">
+        <label for="data">данные</label>
+        <select id="data">
+          <option value="off" selected>чужие: только переход 1 → 2</option>
+          <option value="on">свои: эпизод целиком, 1 → 2 → конец</option>
+        </select>
+      </div>
+    </div>
+    <div class="boards">
+      <div class="panel">
+        <h3>v̂(1) по шагам обучения (шкала логарифмическая)</h3>
+        <svg id="w-svg" viewBox="0 0 440 260" role="img" aria-label="Оценка v̂(1) по шагам обучения"></svg>
+        <div class="legend">
+          <span><span class="swatch" style="background: var(--ql)"></span>выбранный вариант</span>
+          <span><span class="swatch" style="background: var(--muted)"></span>все три условия при тех же γ и α</span>
+        </div>
+      </div>
+      <div class="panel">
+        <h3>После 100 шагов</h3>
+        <p>v̂(1) = <span class="big" id="w-final">—</span></p>
+        <p class="big" id="w-verdict">—</p>
+        <p class="hint" id="w-factor">—</p>
+        <p class="hint">Все три условия: общий вес, своя оценка в цели, чужие данные. Тогда за шаг
+          w умножается на 1 + α(2γ − 1), и при γ &gt; 0.5 это больше 1.</p>
+      </div>
+    </div>
+  </div>
+
+</section>
+
+<footer>
+  Страница работает без интернета после загрузки и ничего никуда не отправляет.
+  Материалы курса — в <a href="https://github.com/IlyaChichkanov/Reinforcement-learning">репозитории</a>,
+  квизы — на <a href="index.html">главной</a>.
+</footer>
+
+</div>
+
+<script>
+"use strict";
+/* ---------------- данные вопросов ---------------- */
+const QUESTIONS = [
+  {
+    "id": "q1",
+    "topic": "Разминка · таблица не учит соседей",
+    "text": "CartPole: состояние — четыре числа (положение и скорость тележки, угол и угловая скорость шеста). Каждое режем на 6 отрезков: таблица Q на 6 × 6 × 6 × 6 = 1296 клетках, Q-learning 300 эпизодов. Сколько клеток из 1296 получат хотя бы одно обновление?",
+    "options": [
+      "почти все",
+      "около половины",
+      "около 10 %",
+      "только клетки рядом со стартом"
+    ],
+    "answer": 2,
+    "explain": "На лекции обновления получили 8 % клеток, остальные хранят нули; шест к концу обучения стоит 43–61 шагов. Клетка учится, только когда агент в неё попал: на карте таблицы — острова, а соседняя с самой обновляемой клетка (★ обновлялась 325 раз) не обновлялась ни разу."
+  },
+  {
+    "id": "q2",
+    "topic": "Q-сеть · след одного шага",
+    "text": "Q-сеть 4 → 64 → 64 → 2 по состоянию даёт Q(s, ←) и Q(s, →). Один шаг градиента сдвинул Q(★, →) в состоянии ★: шест наклонён вправо на 0.05 рад и падает вправо. Где изменится Q(·, →) на плоскости «угол — угловая скорость»?",
+    "options": [
+      "только в клетке ★, как у таблицы",
+      "в небольшом пятне вокруг ★",
+      "почти на всей плоскости",
+      "нигде заметно: шаг слишком маленький"
+    ],
+    "answer": 2,
+    "explain": "На лекции Q(·, →) сдвинулась на +1.15 в самой ★ и на +0.89 в дальнем углу, где шест падает в другую сторону. У сети все состояния считаются одними и теми же весами — шаг сдвигает оценки всех похожих состояний. Это обобщение."
+  },
+  {
+    "id": "q3",
+    "topic": "Буфер опыта",
+    "text": "Учим Q-сеть 300 эпизодов двумя способами: шаг градиента на каждом переходе подряд — или на случайных пачках по 64 перехода из журнала всех прошлых переходов (буфер опыта). Цель y = r + γ max Q(s′) считает та же сеть. Оценка старта больше 100 быть не может: 1 + 0.99 + 0.99² + … = 100. Что даст буфер?",
+    "options": [
+      "шест будет стоять дольше, и оценки Q останутся разумными",
+      "шест будет стоять дольше, но оценки Q вырастут до тысяч",
+      "ничего не изменится",
+      "станет хуже: старые переходы собраны плохой стратегией"
+    ],
+    "answer": 1,
+    "explain": "На лекции с буфером шест стоит 206–348 шагов в эпизодах 100–300 против 52–83 по шагу подряд. Но оценка старта во всех трёх запусках с буфером ушла за предел 100: до 1584, 3698 и 210 279, а по шагу подряд осталась 58–98. Цель считает та же сеть: шаг поднимает Q(s, a), а из-за обобщения поднимается и Q(s′) — цель убегает. Почему именно с буфером — вопрос 4."
+  },
+  {
+    "id": "q4",
+    "topic": "Смертельная триада",
+    "text": "Два состояния: 1 → 2 с наградой 0, из 2 — конец с наградой 0; настоящие ценности равны 0. Оценка с одним общим весом: v̂(1) = w, v̂(2) = 2w. В данных только переходы 1 → 2, обновление w ← w + α(γ · 2w − w). Начинаем с w = 1, γ = 0.9, α = 0.1 и делаем 100 обновлений. Что будет с w?",
+    "options": [
+      "придёт к 0 — награды же нули",
+      "останется 1",
+      "вырастет до тысяч",
+      "будет колебаться около 0"
+    ],
+    "answer": 2,
+    "explain": "За одно обновление w умножается на 1 + α(2γ − 1) = 1 + 0.1 · 0.8 = 1.08, и 1.08¹⁰⁰ ≈ 2200. Подъём v̂(1) поднимает и v̂(2) = 2w — вдвое сильнее, цель убегает; опустить v̂(2) мог бы переход из 2 в конец, но его в данных нет. Нужны три условия: общий вес, своя оценка в цели, чужие данные — уберите любое, и пример сходится. Буфер опыта добавляет Q-сети третье. Проверьте в песочнице."
+  },
+  {
+    "id": "q5",
+    "topic": "Главный вопрос · DQN",
+    "text": "Четыре варианта Q-сети на CartPole: буфер опыта да/нет × целевая сеть да/нет. Целевая сеть — медленная копия основной, цель y считает она. Какой вариант будет держать шест дольше всех, не разгоняя оценки Q до тысяч?",
+    "options": [
+      "только буфер",
+      "только целевая сеть",
+      "буфер и целевая сеть вместе",
+      "без приёмов"
+    ],
+    "answer": 2,
+    "explain": "На лекции DQN (буфер + целевая сеть) держит шест 273–416 шагов, оценка старта — до 114–131: чуть выше 100, а не тысячи (это завышение уменьшает Double DQN). Один буфер держит шест почти так же долго, но разгоняет оценки до тысяч и сотен тысяч, и обучение дёргается; одна целевая сеть почти не учится: 26–33 шага — без буфера примеров мало и они однообразные, а цель ещё и запаздывает. Буфер даёт разнообразные данные, целевая сеть — неподвижную мишень; работает только пара."
+  }
+];
+const LETTERS = ["A", "B", "C", "D"];
+
+/* локальное хранение (личное удобство: мой ответ и счётчик) */
+const store = {
+  get(k, d) { try { const v = localStorage.getItem("l06:" + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem("l06:" + k, JSON.stringify(v)); } catch {} },
+};
+
+let qIndex = 0;
+let revealed = {};
+const $ = (id) => document.getElementById(id);
+
+function renderQnav() {
+  const nav = $("qnav");
+  nav.innerHTML = "";
+  QUESTIONS.forEach((q, i) => {
+    const b = document.createElement("button");
+    b.textContent = i + 1;
+    b.setAttribute("role", "tab");
+    b.setAttribute("aria-selected", i === qIndex ? "true" : "false");
+    b.setAttribute("aria-label", "Вопрос " + (i + 1));
+    b.addEventListener("click", () => { qIndex = i; renderQuestion(); });
+    nav.appendChild(b);
+  });
+}
+
+function counts(q) { return store.get("cnt:" + q.id, [0, 0, 0, 0]); }
+
+function renderQuestion() {
+  renderQnav();
+  const q = QUESTIONS[qIndex];
+  const isRevealed = !!revealed[q.id];
+  $("q-topic").textContent = "Вопрос " + (qIndex + 1) + " из " + QUESTIONS.length + " · " + q.topic;
+  $("q-text").textContent = q.text;
+  $("qcard").classList.toggle("revealed", isRevealed);
+
+  const picked = store.get("pick:" + q.id, null);
+  const opts = $("q-opts");
+  opts.innerHTML = "";
+  q.options.forEach((text, i) => {
+    const b = document.createElement("button");
+    b.className = "opt";
+    b.dataset.picked = picked === i ? "1" : "0";
+    b.dataset.correct = q.answer === i ? "1" : "0";
+    b.innerHTML = '<span class="letter">' + LETTERS[i] + "</span><span></span>";
+    b.lastChild.textContent = text;
+    b.addEventListener("click", () => {
+      store.set("pick:" + q.id, i);
+      renderQuestion();
+    });
+    opts.appendChild(b);
+  });
+
+  const verdict = $("q-verdict");
+  if (isRevealed) {
+    const ok = picked === q.answer;
+    verdict.textContent = picked === null
+      ? "Ответ: " + LETTERS[q.answer]
+      : (ok ? "✓ Верно: " + LETTERS[q.answer] : "✗ Ваш выбор — " + LETTERS[picked] + ", верный ответ — " + LETTERS[q.answer]);
+    verdict.style.color = picked === null ? "" : (ok ? "var(--good)" : "var(--accent)");
+  } else {
+    verdict.textContent = picked === null ? "" : "Ваш выбор: " + LETTERS[picked];
+    verdict.style.color = "";
+  }
+  $("q-explain").hidden = !isRevealed;
+  $("q-explain").textContent = q.explain;
+  $("q-reveal").textContent = isRevealed ? "Скрыть ответ" : "Показать ответ";
+
+  renderCounter();
+}
+
+function renderCounter() {
+  const q = QUESTIONS[qIndex];
+  const grid = $("count-grid");
+  const cnt = counts(q);
+  const total = cnt.reduce((a, b) => a + b, 0);
+  const max = Math.max(1, ...cnt);
+  grid.innerHTML = "";
+  q.options.forEach((_, i) => {
+    const ctl = document.createElement("div");
+    ctl.className = "count-ctl";
+    const minus = document.createElement("button"); minus.textContent = "−";
+    minus.setAttribute("aria-label", "Минус один за " + LETTERS[i]);
+    const input = document.createElement("input");
+    input.type = "number"; input.min = 0; input.max = 999; input.value = cnt[i];
+    input.id = "cnt-" + q.id + "-" + i;
+    input.setAttribute("aria-label", "Голосов за " + LETTERS[i]);
+    const plus = document.createElement("button"); plus.textContent = "+";
+    plus.setAttribute("aria-label", "Плюс один за " + LETTERS[i]);
+    const save = (v) => { const c = counts(q); c[i] = Math.max(0, v | 0); store.set("cnt:" + q.id, c); renderCounter(); };
+    minus.addEventListener("click", () => save(counts(q)[i] - 1));
+    plus.addEventListener("click", () => save(counts(q)[i] + 1));
+    input.addEventListener("change", () => save(+input.value));
+    ctl.append(minus, input, plus);
+
+    const row = document.createElement("div");
+    row.className = "bar-row";
+    const letter = document.createElement("strong"); letter.textContent = LETTERS[i];
+    const track = document.createElement("div"); track.className = "bar-track";
+    const fill = document.createElement("div"); fill.className = "bar-fill";
+    fill.dataset.correct = q.answer === i ? "1" : "0";
+    fill.style.width = (cnt[i] / max * 100) + "%";
+    track.appendChild(fill);
+    const num = document.createElement("span"); num.className = "bar-num";
+    num.textContent = total ? cnt[i] + " · " + Math.round(cnt[i] / total * 100) + "%" : "0";
+    row.append(letter, track, num);
+    grid.append(ctl, row);
+  });
+}
+
+$("q-reveal").addEventListener("click", () => {
+  const q = QUESTIONS[qIndex];
+  revealed[q.id] = !revealed[q.id];
+  renderQuestion();
+});
+$("q-reset").addEventListener("click", () => {
+  const q = QUESTIONS[qIndex];
+  store.set("pick:" + q.id, null);
+  store.set("cnt:" + q.id, [0, 0, 0, 0]);
+  revealed[q.id] = false;
+  renderQuestion();
+});
+
+
+/* ---------------- песочница ---------------- */
+function mulberry32(seed) {
+  let a = seed | 0;
+  return function () {
+    a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+const SVGNS = "http://www.w3.org/2000/svg";
+function el(tag, attrs, parent) {
+  const node = document.createElementNS(SVGNS, tag);
+  for (const k in attrs) node.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(node);
+  return node;
+}
+function cssColor(name, fallback) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+}
+
+/* --- пример «w и 2w»: 1 → 2 (награда 0), 2 → конец (награда 0) --- */
+function runTwoStates(gamma, alpha, approx, target, data, steps) {
+  let w = 1, w1 = 1, w2 = 2;                         // общий вес: v̂(1) = w, v̂(2) = 2w; таблица: v̂(1) = w1, v̂(2) = w2
+  const v1 = () => (approx === "shared" ? w : w1);
+  const v2 = () => (approx === "shared" ? 2 * w : w2);
+  const history = [v1()];
+  for (let k = 0; k < steps; k++) {
+    let delta = (target === "td" ? 0 + gamma * v2() : 0) - v1();     // переход 1 → 2
+    if (approx === "shared") w += alpha * delta * 1; else w1 += alpha * delta;
+    if (data === "on") {                                                // переход 2 → конец: цель 0
+      delta = 0 - v2();
+      if (approx === "shared") w += alpha * delta * 2; else w2 += alpha * delta;
+    }
+    history.push(v1());
+  }
+  return history;
+}
+
+const PLOT = { L: 46, R: 10, T: 12, B: 36, W: 440, H: 260, lo: -20, hi: 6 };
+const px = (k) => PLOT.L + k / 100 * (PLOT.W - PLOT.L - PLOT.R);
+const py = (v) => {
+  const l = Math.min(PLOT.hi, Math.max(PLOT.lo, Math.log10(Math.max(Math.abs(v), 1e-300))));
+  return PLOT.T + (PLOT.hi - l) / (PLOT.hi - PLOT.lo) * (PLOT.H - PLOT.T - PLOT.B);
+};
+const SUP = { "0": "⁰", "1": "¹", "2": "²", "3": "³", "4": "⁴", "5": "⁵", "6": "⁶", "7": "⁷", "8": "⁸", "9": "⁹", "-": "⁻" };
+const pow10 = (e) => "10" + String(e).split("").map((c) => SUP[c]).join("");
+function fmt(v) {
+  const a = Math.abs(v);
+  let s;
+  if (a !== 0 && (a < 1e-3 || a >= 1e5)) {
+    const e = Math.floor(Math.log10(a)), m = v / Math.pow(10, e);
+    s = m.toFixed(1) + "·" + pow10(e);
+  } else s = a >= 100 ? v.toFixed(0) : v.toFixed(3);
+  return s.replace(/-/g, "−");
+}
+
+function drawW(history, baseline) {
+  const svg = $("w-svg");
+  svg.innerHTML = "";
+  for (let l = PLOT.lo; l <= PLOT.hi; l += 5) {
+    const y = py(Math.pow(10, l));
+    el("line", { x1: PLOT.L, x2: PLOT.W - PLOT.R, y1: y, y2: y, stroke: "var(--line)", "stroke-width": 1 }, svg);
+    const t = el("text", { x: PLOT.L - 7, y: y + 4, "text-anchor": "end", "font-size": 12, class: "mut" }, svg);
+    t.textContent = l === 0 ? "1" : pow10(l);
+  }
+  [0, 25, 50, 75, 100].forEach((k) => {
+    const t = el("text", { x: px(k), y: PLOT.H - PLOT.B + 17, "text-anchor": "middle", "font-size": 12, class: "mut" }, svg);
+    t.textContent = k;
+  });
+  const cap = el("text", { x: (PLOT.L + PLOT.W - PLOT.R) / 2, y: PLOT.H - 3, "text-anchor": "middle", "font-size": 12, class: "mut" }, svg);
+  cap.textContent = "шаг обучения";
+  const line = (h, color, width) => el("polyline", { points: h.map((v, k) => px(k) + "," + py(v)).join(" "),
+    fill: "none", stroke: color, "stroke-width": width }, svg);
+  line(baseline, cssColor("--muted", "#776f63"), 2);
+  line(history, cssColor("--ql", "#4C72B0"), 3);
+}
+
+function updateSandbox() {
+  const gamma = +$("gamma").value, alpha = +$("alpha").value;
+  $("gamma-out").textContent = gamma.toFixed(2);
+  $("alpha-out").textContent = alpha.toFixed(2);
+  const history = runTwoStates(gamma, alpha, $("approx").value, $("target").value, $("data").value, 100);
+  const baseline = runTwoStates(gamma, alpha, "shared", "td", "off", 100);
+  drawW(history, baseline);
+  const last = history[100], prev = history[99];
+  $("w-final").textContent = fmt(last);
+  const factor = prev !== 0 ? Math.abs(last / prev) : 0;
+  const grows = factor > 1.0005;
+  const still = history.every((v) => Math.abs(v - history[0]) < 1e-12);
+  const settled = Math.abs(last - prev) < 1e-4 * Math.abs(last);
+  const verdict = $("w-verdict");
+  verdict.textContent = grows ? "разлетается" : still ? "не меняется" : settled ? "остановилась" : "сходится";
+  verdict.className = "big " + (grows ? "verdict-bad" : "verdict-good");
+  $("w-factor").textContent = prev !== 0
+    ? "за последний шаг v̂(1) умножилась на " + (last / prev).toFixed(3).replace("-", "−")
+    : "";
+}
+["gamma", "alpha"].forEach((id) => $(id).addEventListener("input", updateSandbox));
+["approx", "target", "data"].forEach((id) => $(id).addEventListener("change", updateSandbox));
+
+/* ---------------- вкладки ---------------- */
+document.querySelectorAll("nav.tabs button").forEach((b) => {
+  b.addEventListener("click", () => {
+    document.querySelectorAll("nav.tabs button").forEach((x) => x.setAttribute("aria-selected", x === b ? "true" : "false"));
+    $("view-questions").hidden = b.dataset.tab !== "questions";
+    $("view-sandbox").hidden = b.dataset.tab !== "sandbox";
+  });
+});
+if (location.hash === "#sandbox") document.getElementById("tab-s").click();
+
+renderQuestion();
+updateSandbox();
+</script>
+</body>
+</html>
