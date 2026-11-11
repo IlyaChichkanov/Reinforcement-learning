@@ -19,5 +19,8 @@ journal.csv
 # GIF, который пишет animate_cartpole при прогоне семинара 5
 cartpole.gif
 
+# GIF, который пишет animate_acrobot при прогоне домашки 3
+acrobot.gif
+
 # GIF, который пишет лекция 6 при прогоне (в ноутбук он встроен вложением)
 06-dqn/lecture/dqn_cartpole.gif

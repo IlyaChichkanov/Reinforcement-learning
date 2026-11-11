@@ -74,7 +74,7 @@ uv run python tools/make_roster.py students.csv --from-fio --group RL-2026   # �
 ## На каждый блок
 
 1. Ноутбук блока — в `homeworks/hwN/homework.ipynb` этого репозитория (в `main`).
-2. В `course-admin`: **Actions → Выдать блок → Run workflow** с номером N. Переменная `CURRENT_BLOCK` = N, чтобы ежечасный сбор переключился на новый блок.
+2. В `course-admin`: **Actions → Выдать блок → Run workflow** с номером N. Переменная `CURRENT_BLOCK` = N, чтобы ежечасный сбор переключился на новый блок. Поле `weeks` (недели квизов) пустое — значит 2N−1, 2N; **для блока 3 впишите `5`**: блок охватывает одну лекцию 5, иначе студентам выдадутся заготовки квизов недель 5 и 6.
 3. Дедлайн вписать в таблицу в [`../homeworks/README.md`](../homeworks/README.md).
 4. После дедлайна: **Actions → Собрать работы → Run workflow** с номером блока и полем `before` = момент дедлайна. Версии на этот момент лягут в `blockN-deadline/`.
 
