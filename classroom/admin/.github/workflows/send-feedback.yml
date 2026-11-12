@@ -1,0 +1,112 @@
+name: Разослать отзывы
+
+# Запуск вручную: Actions → «Разослать отзывы» → номер блока.
+# Копирует blockN/<логин>/feedback.md этого репозитория в репозиторий студента как hwN/feedback.md.
+# Файл с тем же содержимым не трогает, изменённый отзыв обновляет — повторный запуск безопасен.
+# Коммит в репо студента делается от имени владельца ADMIN_TOKEN, поэтому сбор работ его не считает сдачей.
+
+on:
+  workflow_dispatch:
+    inputs:
+      block:
+        description: "Номер блока"
+        required: true
+      skip:
+        description: "Кому не отправлять: логины через запятую (например, работы ещё на проверке)"
+        required: false
+      dry_run:
+        description: "Только показать, что будет сделано"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Разослать
+        env:
+          GITHUB_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+          BLOCK: ${{ inputs.block }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          SKIP: ${{ inputs.skip }}
+          ORG: ${{ github.repository_owner }}
+          PREFIX: ${{ vars.REPO_PREFIX || 'rl' }}
+        run: |
+          case "$BLOCK" in (*[!0-9]*|'') echo "номер блока — число"; exit 1;; esac
+          rc=0
+          python - > report.txt 2>&1 <<'EOF' || rc=$?
+          import base64, json, os, pathlib, urllib.error, urllib.request
+          block, org, prefix = os.environ["BLOCK"], os.environ["ORG"], os.environ["PREFIX"]
+          dry = os.environ.get("DRY_RUN") == "true"
+          token = os.environ["GITHUB_TOKEN"]
+          skip = {x.strip().lower() for x in os.environ.get("SKIP", "").split(",") if x.strip()}
+
+          def call(method, path, body=None):
+              req = urllib.request.Request("https://api.github.com" + path, method=method,
+                                           data=json.dumps(body).encode() if body is not None else None,
+                                           headers={"Authorization": f"Bearer {token}",
+                                                    "Accept": "application/vnd.github+json"})
+              try:
+                  with urllib.request.urlopen(req) as r:
+                      return r.status, json.loads(r.read() or b"null")
+              except urllib.error.HTTPError as e:
+                  return e.code, None
+
+          print("режим:", "ПРОБНЫЙ (dry-run) — ничего не отправляется" if dry else "настоящий")
+          files = sorted(pathlib.Path(f"block{block}").glob("*/feedback.md"))
+          print(f"Отзывов в block{block}/: {len(files)}\n")
+          sent = same = errors = 0
+          for f in files:
+              login = f.parent.name
+              if login in skip:
+                  print(f"  {login:24} пропущен по списку"); continue
+              repo, path = f"{org}/{prefix}-{login}", f"hw{block}/feedback.md"
+              content = f.read_bytes()
+              status, old = call("GET", f"/repos/{repo}/contents/{path}")
+              if status == 200 and base64.b64decode(old["content"]) == content:
+                  print(f"  {login:24} уже есть, не изменился"); same += 1; continue
+              if status not in (200, 404):
+                  print(f"  {login:24} ОШИБКА чтения ({status})"); errors += 1; continue
+              what = "обновлён" if status == 200 else "отправлен"
+              if dry:
+                  print(f"  {login:24} [dry-run] будет {what}"); continue
+              body = {"message": f"Отзыв по блоку {block}", "content": base64.b64encode(content).decode()}
+              if status == 200:
+                  body["sha"] = old["sha"]
+              st, _ = call("PUT", f"/repos/{repo}/contents/{path}", body)
+              if st in (200, 201):
+                  print(f"  {login:24} {what}"); sent += 1
+              else:
+                  print(f"  {login:24} ОШИБКА записи ({st})"); errors += 1
+          print(f"\nОтправлено: {sent}, без изменений: {same}, ошибок: {errors}.")
+          raise SystemExit(1 if errors else 0)
+          EOF
+          cat report.txt
+          { echo "## Отзывы блока $BLOCK"; echo '```'; cat report.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit $rc
+
+      - name: Сохранить отчёт в reports/
+        if: always()
+        env:
+          NAME: send-feedback
+          PARAMS: "block=${{ inputs.block }} skip=${{ inputs.skip }} dry_run=${{ inputs.dry_run }}"
+        run: |
+          mkdir -p reports
+          f="reports/$(date -u +%Y-%m-%d_%H%M%S)-$NAME.txt"
+          {
+            echo "запуск: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            echo "параметры: $PARAMS"
+            echo
+            for r in report.txt; do if [ -f "$r" ]; then cat "$r"; echo; fi; done
+          } > "$f"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- "$f"
+          git commit -q -m "Отчёт: $NAME"
+          for i in 1 2 3; do git pull -q --rebase && git push -q && exit 0; sleep 5; done
+          echo "не удалось сохранить отчёт"; exit 1
