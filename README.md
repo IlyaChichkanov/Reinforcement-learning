@@ -48,7 +48,7 @@
 <td>6</td>
 <td>29.09</td>
 <td>Введение в Deep RL: нейросеть вместо таблицы — Q-сеть и буфер опыта</td>
-<td><a href="06-dqn/lecture/lecture.ipynb">лекция</a> · <a href="https://ilyachichkanov.github.io/Reinforcement-learning/lecture06.html">страница с вопросами и песочницей</a></td>
+<td><a href="06-dqn/lecture/lecture.ipynb">лекция</a> · <a href="https://ilyachichkanov.github.io/Reinforcement-learning/lecture06.html">страница с вопросами</a></td>
 </tr>
 <tr>
 <td>7</td>
