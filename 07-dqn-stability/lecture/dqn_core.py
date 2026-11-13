@@ -13,6 +13,14 @@
     train_qnet(seed, replay=True, episodes=300, lr=1e-3, batch=64)
         Q-сеть лекции 6: цель считает сама обучаемая сеть. replay=True — шаг на пачке из буфера опыта,
         replay=False — на одном последнем переходе. Возвращает (длины эпизодов, оценки старта, сеть).
+
+Обвязка опытов лекции 7
+    train_runs(train, seeds, **settings)
+        запускает train(seed, **settings) для каждого seed; возвращает длины эпизодов и оценки старта —
+        массивы «запуски × эпизоды» — и список обученных сетей
+    print_summary(lengths, q_start, skip=100)
+        таблица по вариантам: средняя длина эпизода после первых skip эпизодов и наибольшая оценка старта
+    best_run(lengths, last=50)        номер запуска с самыми длинными последними эпизодами
 """
 from collections import deque
 
@@ -90,3 +98,24 @@ def train_qnet(seed, replay=True, episodes=300, lr=1e-3, batch=64):
                 break
         lengths.append(t)
     return np.array(lengths), np.array(q_start), qnet
+
+
+def train_runs(train, seeds, **settings):
+    results = [train(seed, **settings) for seed in seeds]
+    lengths = np.array([result[0] for result in results])            # запуски × эпизоды
+    q_start = np.array([result[1] for result in results])            # запуски × эпизоды
+    return lengths, q_start, [result[-1] for result in results]
+
+
+def print_summary(lengths, q_start, skip=100):
+    numbers = lambda values: ", ".join(f"{v:.0f}" for v in values)
+    head = f"шест после {skip} эпизодов, шагов"
+    width = max(len(name) for name in lengths)
+    print(f"{'вариант':{width}s}   {head}   наибольшая оценка старта      (число — один запуск)")
+    for name in lengths:
+        print(f"{name:{width}s}   {numbers(lengths[name][:, skip:].mean(axis=1)):{len(head)}s}   "
+              f"{numbers(np.abs(q_start[name]).max(axis=1))}")
+
+
+def best_run(lengths, last=50):
+    return int(lengths[:, -last:].mean(axis=1).argmax())

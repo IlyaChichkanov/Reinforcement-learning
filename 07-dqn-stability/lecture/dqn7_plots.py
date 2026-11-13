@@ -1,4 +1,4 @@
-"""Картинки лекции 7: схема обучения Q-сети, смертельная триада, оценка против настоящей суммы наград, DQN на Atari.
+"""Картинки лекции 7: схема обучения Q-сети, смертельная триада, лунный модуль, DQN на Atari.
 
 Читать этот файл не обязательно: всё, что нужно на лекции, показано картинками.
 Рисовальщики принимают ax=None, рисуют и возвращают ax.
@@ -6,13 +6,12 @@
     draw_dqn_scheme(target=False, ax=None)
         схема одного шага обучения: среда → буфер → пачка → оценка и цель → шаг градиента.
         target=False — цель считает сама обучаемая сеть (красная петля); target=True — её медленная копия.
+    plot_length_and_q(lengths, q_start)         две мерки рядом: длина эпизода и оценка старта; словари {вариант: запуски × эпизоды}
+    plot_four_variants(lengths, q_start)        четыре панели «буфер × целевая сеть»
     draw_triad(ax=None)
         три условия — три круга; алгоритмы курса расставлены по областям, в центре — все три условия сразу.
     draw_two_states_scheme(ax=None)             пример «w и 2w»: два состояния, один вес, какие переходы есть в данных
     plot_chase_frame(axes, history, phase, k)   один кадр анимации «оценка тянется к цели» (assets/make_animations.py)
-    plot_estimate_vs_real(q_start, lengths, ax=None, title="", window=10)
-        оценка старта max Q и сумма наград, которую эпизод принёс на самом деле; q_start и lengths —
-        массивы (запуски, эпизоды); рисуется среднее по запускам, завышение закрашено.
     plot_max_bias(samples, ax=None, title="")
         гистограммы оценок: samples — словарь {подпись: массив чисел}; у каждой подписана средняя.
     plot_lander_returns(returns, ax=None, title="", window=25)   лунный модуль: сумма наград по эпизодам обучения
@@ -85,6 +84,22 @@ def draw_dqn_scheme(target=False, ax=None):
     return ax
 
 
+def plot_length_and_q(lengths, q_start):
+    """Две мерки рядом: сколько шагов стоит шест и какова оценка стартового состояния (словари по вариантам)."""
+    from dqn_plots import plot_q_start, plot_runs
+    fig, axes = plt.subplots(1, 2, figsize=(15, 4.2))
+    plot_runs(lengths, ax=axes[0], title="сколько шагов стоит шест")
+    plot_q_start(q_start, ax=axes[1], title="оценка Q стартового состояния")
+    fig.tight_layout()
+    return axes
+
+
+def plot_four_variants(lengths, q_start):
+    """Четыре панели «буфер есть или нет × целевая сеть есть или нет»; в рамке — наибольшая оценка старта по запускам."""
+    from dqn_plots import plot_grid_2x2
+    return plot_grid_2x2(lengths, {name: np.abs(q).max(axis=1) for name, q in q_start.items()})
+
+
 def draw_triad(ax=None):
     """Смертельная триада кругами: каждое условие — круг, алгоритмы стоят в области своих условий."""
     if ax is None:
@@ -154,26 +169,6 @@ def plot_chase_frame(axes, history, phase, k):
         ax.set_xlim(-0.6, 1.6); ax.set_ylim(0, 5.2); ax.tick_params(axis="y", labelsize=11); ax.grid(axis="y", alpha=0.3)
         ax.set_title(titles[name], fontsize=13, color=C_ACCENT if name == "общий вес" else C_ENV, weight="bold")
     return axes
-
-
-def plot_estimate_vs_real(q_start, lengths, ax=None, title="", window=10, gamma=0.99):
-    """Оценка старта max Q и сумма наград, которую эпизод принёс на самом деле (среднее по запускам)."""
-    if ax is None:
-        _, ax = plt.subplots(figsize=(7, 4.2))
-    kernel = np.ones(window) / window
-    smooth = lambda rows: np.convolve(np.mean(rows, axis=0), kernel, mode="valid")
-    real = (1 - gamma ** np.asarray(lengths, dtype=float)) / (1 - gamma)
-    promised, got = smooth(q_start), smooth(real)
-    episodes = np.arange(window - 1, window - 1 + len(got))
-    ax.fill_between(episodes, got, promised, where=promised > got, color=C_ACCENT, alpha=0.25, label="завышение")
-    ax.plot(episodes, promised, color=C_ACCENT, lw=2.5, label="оценка старта max Q")
-    ax.plot(episodes, got, color=C_ENV, lw=2.5, label="сумма наград эпизода")
-    ax.axhline(1 / (1 - gamma), color=C_GREY, lw=1.2, ls="--")
-    ax.text(episodes[0], 1 / (1 - gamma) + 2, "больше 100 не бывает", fontsize=11, color=C_GREY, va="bottom")
-    ax.set_xlabel("эпизод", fontsize=12); ax.set_ylabel("сумма наград с дисконтом", fontsize=12)
-    ax.tick_params(labelsize=11); ax.grid(alpha=0.3); ax.legend(loc="lower right", fontsize=11)
-    ax.set_title(title, fontsize=13)
-    return ax
 
 
 def plot_max_bias(samples, ax=None, title=""):
