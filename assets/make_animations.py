@@ -617,6 +617,37 @@ def cartpole_trained(seed=3, episode_seed=0, every=5):
 
 ALL.update({"cartpole_trained": cartpole_trained})
 
+
+def chase_target(gamma=0.9, alpha=0.1, steps=12):
+    """Пример «w и 2w» (лекция 7): оценка шагает к цели. С общим весом цель после каждого шага пересчитывается и уходит
+    дальше; в таблице у состояния 2 своё число, и цель стоит на месте."""
+    sys.path.insert(0, str(ROOT / "07-dqn-stability" / "lecture"))
+    from dqn7_plots import plot_chase_frame
+    history = {"общий вес": [(1.0, 2 * gamma * 1.0)], "таблица": [(1.0, gamma * 2.0)]}
+    for _ in range(steps):
+        value, goal = history["общий вес"][-1]
+        value = value + alpha * (goal - value)                    # оценка v̂(1) = w шагнула к цели
+        history["общий вес"].append((value, 2 * gamma * value))   # цель γ·v̂(2) = 2γw пересчитана тем же w
+        value, goal = history["таблица"][-1]
+        history["таблица"].append((value + alpha * (goal - value), goal))   # v̂(2) = 2 хранится отдельно
+    frames = [(0, 1)] + [(k, phase) for k in range(1, steps + 1) for phase in (0, 1)] + [(steps, 1)] * 3
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4.4))
+
+    def frame(i):
+        k, phase = frames[i]
+        plot_chase_frame(axes, history, phase, k)
+        text = "начало: оценка 1, цель 1.8" if k == 0 else (
+            f"шаг {k}: цель пересчитана" if phase else f"шаг {k}: оценка прошла десятую часть пути до цели")
+        fig.suptitle(text, fontsize=14, y=0.99)
+        fig.tight_layout(rect=(0, 0, 1, 0.95))
+
+    _save(FuncAnimation(fig, frame, frames=len(frames), interval=600), "chase_target", fps=1.7)
+    plt.close(fig)
+    print("после", steps, "шагов:", {name: tuple(round(v, 2) for v in pairs[-1]) for name, pairs in history.items()})
+
+
+ALL.update({"chase_target": chase_target})
+
 if __name__ == "__main__":
     names = sys.argv[1:] or list(ALL)
     for n in names:

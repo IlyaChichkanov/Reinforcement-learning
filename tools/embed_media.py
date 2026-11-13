@@ -66,10 +66,12 @@ def main() -> int:
         for name in sorted(names):
             total += 1
             src = next((d / name for d in args.media if (d / name).is_file()), None)
+            if args.check:
+                if src is None and name not in att:      # при проверке хватает уже встроенного вложения
+                    missing.append(name)
+                continue
             if src is None:
                 missing.append(name)
-                continue
-            if args.check:
                 continue
             mime, payload = _encode(src)
             att[name] = {mime: payload}
