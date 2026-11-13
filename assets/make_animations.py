@@ -617,6 +617,102 @@ def cartpole_trained(seed=3, episode_seed=0, every=5):
 
 ALL.update({"cartpole_trained": cartpole_trained})
 
+
+def chase_target(gamma=0.9, alpha=0.1, steps=12):
+    """Пример «w и 2w» (лекция 7): оценка шагает к цели. С общим весом цель после каждого шага пересчитывается и уходит
+    дальше; в таблице у состояния 2 своё число, и цель стоит на месте."""
+    sys.path.insert(0, str(ROOT / "07-dqn-stability" / "lecture"))
+    from dqn7_plots import plot_chase_frame
+    history = {"общий вес": [(1.0, 2 * gamma * 1.0)], "таблица": [(1.0, gamma * 2.0)]}
+    for _ in range(steps):
+        value, goal = history["общий вес"][-1]
+        value = value + alpha * (goal - value)                    # оценка v̂(1) = w шагнула к цели
+        history["общий вес"].append((value, 2 * gamma * value))   # цель γ·v̂(2) = 2γw пересчитана тем же w
+        value, goal = history["таблица"][-1]
+        history["таблица"].append((value + alpha * (goal - value), goal))   # v̂(2) = 2 хранится отдельно
+    frames = [(0, 1)] + [(k, phase) for k in range(1, steps + 1) for phase in (0, 1)] + [(steps, 1)] * 3
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4.4))
+
+    def frame(i):
+        k, phase = frames[i]
+        plot_chase_frame(axes, history, phase, k)
+        text = "начало: оценка 1, цель 1.8" if k == 0 else (
+            f"шаг {k}: цель пересчитана" if phase else f"шаг {k}: оценка прошла десятую часть пути до цели")
+        fig.suptitle(text, fontsize=14, y=0.99)
+        fig.tight_layout(rect=(0, 0, 1, 0.95))
+
+    _save(FuncAnimation(fig, frame, frames=len(frames), interval=600), "chase_target", fps=1.7)
+    plt.close(fig)
+    print("после", steps, "шагов:", {name: tuple(round(v, 2) for v in pairs[-1]) for name, pairs in history.items()})
+
+
+ALL.update({"chase_target": chase_target})
+
+
+def _lander_trained(seed=0, episodes=600):
+    """Обученная DQN для лунного модуля; обучение ~6 минут, поэтому результат кладётся во временный файл."""
+    import pickle, tempfile, torch
+    sys.path.insert(0, str(ROOT / "06-dqn" / "lecture")); sys.path.insert(0, str(ROOT / "07-dqn-stability" / "lecture"))
+    from lander import make_lander_net, train_lander
+    cache = Path(tempfile.gettempdir()) / f"rl_lander_seed{seed}_{episodes}.pkl"
+    if cache.exists():
+        returns, weights = pickle.load(open(cache, "rb"))
+        net = make_lander_net(seed); net.load_state_dict(weights)
+        return returns, net
+    torch.set_num_threads(1)
+    returns, net = train_lander(seed, episodes=episodes,
+                                log=lambda ep, step, avg: print(f"  эпизод {ep}, шагов {step}, среднее за 25: {avg:.0f}"))
+    pickle.dump((returns, net.state_dict()), open(cache, "wb"))
+    return returns, net
+
+
+def lander(seed=0, episodes=600, episode_seed=9, every=3):
+    """Лекция 7: DQN сажает лунный модуль. GIF «до обучения / после», кривая обучения и кадр с подписями (PNG)."""
+    import torch
+    returns, net = _lander_trained(seed, episodes)
+    from lander import make_lander, make_lander_net, greedy_action, play_lander
+    from dqn7_plots import draw_lander_scene, plot_lander_returns
+    # проверка: 20 новых эпизодов без случайных действий
+    env, totals = make_lander(), []
+    for k in range(20):
+        s, _ = env.reset(seed=100_000 + k); total, done = 0.0, False
+        while not done:
+            s, r, terminated, truncated, _ = env.step(greedy_action(net, s)); total += r; done = terminated or truncated
+        totals.append(total)
+    print(f"обучение: первые 50 эпизодов {returns[:50].mean():.0f}, последние 50 — {returns[-50:].mean():.0f}")
+    print(f"проверка на 20 новых эпизодах: среднее {np.mean(totals):.0f}, не меньше 200 — в {sum(t >= 200 for t in totals)} из 20")
+    # картинки
+    before, total_before = play_lander(make_lander_net(seed), seed=episode_seed)      # та же сеть до обучения
+    after, total_after = play_lander(net, seed=episode_seed)
+    print(f"эпизод для анимации: до обучения {len(before) - 1} шагов, сумма {total_before:.0f}; после — {len(after) - 1} шагов, сумма {total_after:.0f}")
+    def height(frame):                                    # строка кадра, где сейчас корпус модуля (нет в кадре — inf)
+        rows = np.nonzero((np.abs(np.asarray(frame).astype(int) - [128, 102, 230]).sum(axis=2) < 60))[0]
+        return rows.mean() if len(rows) else np.inf
+    scene = min(after, key=lambda frame: abs(height(frame) - 130))        # кадр, где модуль в верхней трети
+    fig, ax = plt.subplots(figsize=(9, 6)); draw_lander_scene(scene, ax=ax); fig.tight_layout(pad=0.2)
+    fig.savefig(ROOT / "assets" / "lander_scene.png", dpi=100); plt.close(fig)
+    ax = plot_lander_returns(returns, title="DQN учится сажать модуль: сумма наград по эпизодам")
+    ax.figure.tight_layout(); ax.figure.savefig(ROOT / "assets" / "lander_learning.png", dpi=100); plt.close(ax.figure)
+    # анимация
+    steps = list(range(0, max(len(before), len(after)), every)) + [max(len(before), len(after)) - 1] * 8
+    fig, axes = plt.subplots(1, 2, figsize=(10, 3.75))
+
+    def frame(i):
+        k = steps[i]
+        for ax, frames, total, name in ((axes[0], before, total_before, "до обучения"),
+                                        (axes[1], after, total_after, f"после {episodes} эпизодов обучения")):
+            ax.clear(); ax.imshow(frames[min(k, len(frames) - 1)]); ax.axis("off")
+            done = k >= len(frames) - 1
+            ax.set_title(f"{name}: сумма наград {total:.0f}".replace("-", "−") if done else name, fontsize=13,
+                         color=(C_ACCENT if total < 0 else C_ENV) if done else "k", weight="bold" if done else "normal")
+        fig.tight_layout(pad=0.4)
+
+    _save(FuncAnimation(fig, frame, frames=len(steps), interval=60), "lander", fps=14)
+    plt.close(fig)
+
+
+ALL.update({"lander": lander})
+
 if __name__ == "__main__":
     names = sys.argv[1:] or list(ALL)
     for n in names:
