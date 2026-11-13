@@ -6,7 +6,7 @@
 |---|---|---|---|---|
 | 1 | 1–2: Cross-Entropy, оценка политики, своя среда, уравнения Беллмана | [`hw1/homework.ipynb`](hw1/homework.ipynb) | `hw1/quiz/week01.txt`, `hw1/quiz/week02.txt` | 17.10, 23:59 (МСК) |
 | 2 | 3–4: Q-learning и SARSA, off-policy по логу, Expected SARSA; бонус — таблица на сетке | [`hw2/homework.ipynb`](hw2/homework.ipynb) | `hw2/quiz/week03.txt`, `hw2/quiz/week04.txt` | 03.11, 23:59 (МСК) |
-| 3 | 5: стратегия с параметрами, REINFORCE, вычитание среднего | [`hw3/homework.ipynb`](hw3/homework.ipynb) | `hw3/quiz/week05.txt` | объявит преподаватель |
+| 3 | 5: стратегия с параметрами, REINFORCE, вычитание среднего | [`hw3/homework.ipynb`](hw3/homework.ipynb) | `hw3/quiz/week05.txt` | 22.11, 23:59 (МСК) |
 
 ## Как устроено задание
 
