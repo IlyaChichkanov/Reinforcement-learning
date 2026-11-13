@@ -10,12 +10,13 @@
         три условия — три круга; алгоритмы курса расставлены по областям, в центре — все три условия сразу.
     draw_two_states_scheme(ax=None)             пример «w и 2w»: два состояния, один вес, какие переходы есть в данных
     plot_chase_frame(axes, history, phase, k)   один кадр анимации «оценка тянется к цели» (assets/make_animations.py)
-    plot_toy_curves(curves, ax=None, title="")  пример «w и 2w»: оценка по шагам, curves — словарь {подпись: массив чисел}
     plot_estimate_vs_real(q_start, lengths, ax=None, title="", window=10)
         оценка старта max Q и сумма наград, которую эпизод принёс на самом деле; q_start и lengths —
         массивы (запуски, эпизоды); рисуется среднее по запускам, завышение закрашено.
     plot_max_bias(samples, ax=None, title="")
         гистограммы оценок: samples — словарь {подпись: массив чисел}; у каждой подписана средняя.
+    plot_lander_returns(returns, ax=None, title="", window=25)   лунный модуль: сумма наград по эпизодам обучения
+    draw_lander_scene(frame, ax=None)           кадр LunarLander с подписями
     draw_atari_scheme(ax=None)                  DQN на Atari: четыре кадра → свёрточная сеть → Q для каждой кнопки
 """
 import numpy as np
@@ -155,28 +156,6 @@ def plot_chase_frame(axes, history, phase, k):
     return axes
 
 
-def plot_toy_curves(curves, ax=None, title=""):
-    """Пример «w и 2w»: оценка v̂(1) по шагам для нескольких вариантов; curves — словарь {подпись: массив чисел}.
-    Шкала логарифмическая; всё, что меньше 0.001, считаем дошедшим до нуля. Подписи — справа от картинки."""
-    if ax is None:
-        _, ax = plt.subplots(figsize=(13, 4.2))
-    colours = [C_ACCENT, C_AGENT, C_ENV, C_REWARD]
-    for (name, values), colour in zip(curves.items(), colours):
-        last = values[-1]
-        shown = "почти 0" if abs(last) < 1e-3 else (f"{last:.0f}" if abs(last) >= 100 else f"{last:.2g}")
-        ax.plot(np.arange(1, len(values) + 1), np.abs(values), color=colour, lw=3, label=f"{name}: {shown}")
-    ax.set_yscale("log"); ax.set_ylim(1e-3, 1e4); ax.set_xlim(0, len(values))
-    ax.axhline(1, color=C_GREY, lw=1, ls=":")
-    ax.text(len(values) * 0.99, 1.15e-3, "ниже — оценка у нуля", ha="right", va="bottom", fontsize=11, color=C_GREY)
-    ax.set_xlabel("шаг обучения", fontsize=12); ax.set_ylabel("оценка $\\hat v(1)$", fontsize=12)
-    ax.tick_params(labelsize=11); ax.grid(alpha=0.3, which="major")
-    ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5), fontsize=12, frameon=False,
-              title="оценка после 100 шагов", title_fontsize=12)
-    ax.set_title(title, fontsize=13)
-    ax.figure.tight_layout()
-    return ax
-
-
 def plot_estimate_vs_real(q_start, lengths, ax=None, title="", window=10, gamma=0.99):
     """Оценка старта max Q и сумма наград, которую эпизод принёс на самом деле (среднее по запускам)."""
     if ax is None:
@@ -213,6 +192,43 @@ def plot_max_bias(samples, ax=None, title=""):
     ax.set_xlabel("оценка (настоящая ценность — 0)", fontsize=12); ax.set_yticks([])
     ax.tick_params(labelsize=11); ax.legend(loc="upper left", fontsize=11.5, framealpha=0.95)
     ax.set_title(title, fontsize=13)
+    return ax
+
+
+def plot_lander_returns(returns, ax=None, title="", window=25):
+    """Посадка лунного модуля: сумма наград по эпизодам обучения (тонкая линия) и среднее за window эпизодов."""
+    if ax is None:
+        _, ax = plt.subplots(figsize=(11, 4.2))
+    returns = np.asarray(returns, dtype=float)
+    episodes = np.arange(1, len(returns) + 1)
+    ax.plot(episodes, returns, color=C_AGENT, lw=0.8, alpha=0.35, label="один эпизод")
+    smooth = np.convolve(returns, np.ones(window) / window, mode="valid")
+    ax.plot(episodes[window - 1:], smooth, color=C_AGENT, lw=3, label=f"среднее за {window} эпизодов")
+    ax.axhline(200, color=C_ENV, lw=1.5, ls="--")
+    ax.text(episodes[0], 210, "200 и выше — задача считается решённой", ha="left", va="bottom", fontsize=11.5, color=C_ENV)
+    ax.axhline(0, color=C_GREY, lw=1, ls=":")
+    ax.set_ylim(max(returns.min(), -500), 330)
+    ax.set_xlabel("эпизод обучения", fontsize=12); ax.set_ylabel("сумма наград за эпизод", fontsize=12)
+    ax.tick_params(labelsize=11); ax.grid(alpha=0.3); ax.legend(loc="lower right", fontsize=11.5)
+    ax.set_title(title, fontsize=13)
+    return ax
+
+
+def draw_lander_scene(frame, ax=None):
+    """Кадр среды LunarLander с подписями: модуль с тремя двигателями и площадка между флажками."""
+    if ax is None:
+        _, ax = plt.subplots(figsize=(9, 6))
+    frame = np.asarray(frame)
+    ax.imshow(frame)
+    rows, cols = np.nonzero((np.abs(frame.astype(int) - [128, 102, 230]).sum(axis=2) < 60))   # пиксели корпуса модуля
+    x, y = cols.mean(), rows.mean()
+    note = dict(fontsize=13, color="white", weight="bold", arrowprops=dict(arrowstyle="-|>", color="white", lw=2))
+    ax.annotate("модуль: главный двигатель снизу\nи два боковых", xy=(x + 22, y), xytext=(x + 70, y - 10),
+                ha="left", va="center", **note)
+    ax.annotate("площадка между флажками", xy=(300, 298), xytext=(300, 215), ha="center", **note)
+    ax.text(300, 392, "состояние — 8 чисел: координаты, скорости, угол, угловая скорость, касание двух опор",
+            fontsize=11.5, color="k", ha="center", va="bottom")
+    ax.axis("off")
     return ax
 
 
