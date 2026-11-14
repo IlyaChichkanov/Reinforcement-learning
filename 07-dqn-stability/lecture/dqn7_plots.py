@@ -12,8 +12,10 @@
         три условия — три круга; алгоритмы курса расставлены по областям, в центре — все три условия сразу.
     draw_two_states_scheme(ax=None)             пример «w и 2w»: два состояния, один вес, какие переходы есть в данных
     plot_chase_frame(axes, history, phase, k)   один кадр анимации «оценка тянется к цели» (assets/make_animations.py)
-    plot_max_bias(samples, ax=None, title="")
-        гистограммы оценок: samples — словарь {подпись: массив чисел}; у каждой подписана средняя.
+    draw_double_dqn(copy=(12, 9.5), main=(9, 11), true=10)
+        DQN против Double DQN на одном состоянии: кто выбирает действие и кто его оценивает
+    plot_max_bias(samples, true=0.0, ax=None, title="")
+        гистограммы оценок: samples — словарь {подпись: массив чисел}; true — настоящая ценность
     plot_lander_returns(returns, ax=None, title="", window=25)   лунный модуль: сумма наград по эпизодам обучения
     draw_lander_scene(frame, ax=None)           кадр LunarLander с подписями
     draw_atari_scheme(ax=None)                  DQN на Atari: четыре кадра → свёрточная сеть → Q для каждой кнопки
@@ -171,24 +173,74 @@ def plot_chase_frame(axes, history, phase, k):
     return axes
 
 
-def plot_max_bias(samples, ax=None, title=""):
-    """Гистограммы оценок с подписанными средними; настоящая ценность — 0 (пунктир)."""
+def draw_double_dqn(copy=(12, 9.5), main=(9, 11), true=10):
+    """Чем Double DQN отличается от DQN, на одном состоянии s′ с двумя действиями (← и →).
+    copy — оценки копии сети, main — оценки основной сети, true — настоящая ценность обоих действий.
+    Слева DQN: копия и выбирает действие, и оценивает его. Справа Double DQN: выбирает основная сеть, оценивает копия."""
+    from matplotlib.patches import ConnectionPatch
+    fig, axes = plt.subplots(1, 3, figsize=(15, 5.4), gridspec_kw={"width_ratios": [1, 1, 1], "wspace": 0.35})
+    names = ["←", "→"]
+
+    def bars(ax, values, colour, picked, title):
+        for k, v in enumerate(values):
+            ax.bar(k, v, 0.55, color=colour, alpha=1.0 if k == picked else 0.35,
+                   edgecolor="k" if k == picked else "none", lw=2.5)
+            ax.text(k, v + 0.5, f"{v:g}", ha="center", fontsize=15, weight="bold" if k == picked else "normal", zorder=5,
+                    bbox=dict(facecolor="white", edgecolor="none", pad=1.5))
+        ax.axhline(true, color="k", lw=1.5, ls="--")
+        ax.text(1.45, true, f"настоящая\nценность {true:g}", ha="left", va="center", fontsize=11,
+                bbox=dict(facecolor="white", edgecolor="none", pad=2))
+        ax.set_xticks([0, 1]); ax.set_xticklabels(names, fontsize=18)
+        ax.set_xlim(-0.6, 2.25); ax.set_ylim(0, max(max(copy), max(main)) + 4.2); ax.set_yticks([])
+        for side in ("top", "right", "left"):
+            ax.spines[side].set_visible(False)
+        ax.set_title(title, fontsize=13, color=colour, weight="bold")
+
+    top = max(max(copy), max(main)) + 3.6
+    # DQN: копия выбирает и оценивает
+    a_copy = int(np.argmax(copy))
+    bars(axes[0], copy, C_REWARD, a_copy, "оценки копии $Q_{\\bar\\theta}(s', \\cdot)$")
+    axes[0].text(0.82, top, f"① копия выбирает {names[a_copy]}: {copy[a_copy]:g} больше\n② копия же его оценивает: {copy[a_copy]:g}",
+                 ha="center", va="top", fontsize=12.5)
+    # Double DQN: выбирает основная сеть, оценивает копия
+    a_main = int(np.argmax(main))
+    bars(axes[1], main, C_AGENT, a_main, "оценки основной сети $Q_{\\theta}(s', \\cdot)$")
+    axes[1].text(0.82, top, f"① основная сеть выбирает {names[a_main]}:\n{main[a_main]:g} больше", ha="center", va="top", fontsize=12.5)
+    bars(axes[2], copy, C_REWARD, a_main, "оценки копии $Q_{\\bar\\theta}(s', \\cdot)$")
+    axes[2].text(0.82, top, f"② копия оценивает {names[a_main]}: {copy[a_main]:g}", ha="center", va="top", fontsize=12.5)
+    fig.add_artist(ConnectionPatch((a_main + 0.32, main[a_main] * 0.5), (a_main - 0.32, copy[a_main] * 0.5), "data", "data",
+                                   axesA=axes[1], axesB=axes[2], arrowstyle="-|>", mutation_scale=24, lw=2.5, color="k"))
+    # заголовки и итог под панелями
+    gap = lambda v: "ровно настоящая" if v == true else f"на {abs(v - true):g} {'больше' if v > true else 'меньше'} настоящей"
+    left, right = axes[0].get_position(), (axes[1].get_position(), axes[2].get_position())
+    mid = (right[0].x0 + right[1].x1) / 2
+    fig.text((left.x0 + left.x1) / 2, 0.98, "DQN", ha="center", fontsize=17, weight="bold")
+    fig.text(mid, 0.98, "Double DQN", ha="center", fontsize=17, weight="bold")
+    fig.text((left.x0 + left.x1) / 2, 0.0, f"в цель идёт {copy[a_copy]:g} — {gap(copy[a_copy])}", ha="center", fontsize=13,
+             color=C_ACCENT, weight="bold")
+    fig.text(mid, 0.0, f"в цель идёт {copy[a_main]:g} — {gap(copy[a_main])}", ha="center", fontsize=13, color=C_ENV, weight="bold")
+    fig.add_artist(plt.Line2D([(left.x1 + right[0].x0) / 2] * 2, [0.03, 0.97], color=C_GREY, lw=1, ls=":"))
+    return axes
+
+
+def plot_max_bias(samples, true=0.0, ax=None, title=""):
+    """Гистограммы оценок с подписанными средними; samples — словарь {подпись: массив чисел};
+    true — настоящая ценность (пунктир)."""
     if ax is None:
         _, ax = plt.subplots(figsize=(11, 4.4))
     colours = [C_GREY, C_ACCENT, C_ENV]
-    bins = np.linspace(-3.5, 3.5, 57)
+    bins = np.linspace(true - 3.5, true + 3.5, 57)
     for (name, values), colour in zip(samples.items(), colours):
         ax.hist(values, bins=bins, histtype="stepfilled", alpha=0.25, color=colour, density=True)
         ax.hist(values, bins=bins, histtype="step", lw=2.2, color=colour, density=True,
-                label=f"{name}: в среднем {np.mean(values):+.2f}")
-        ax.axvline(np.mean(values), color=colour, lw=2, ls="-" if abs(np.mean(values)) > 0.05 else ":")
-    ax.axvline(0, color="k", lw=1, ls="--")
+                label=f"{name}: в среднем {np.mean(values):.2f}")
+        ax.axvline(np.mean(values), color=colour, lw=2, ls="-" if abs(np.mean(values) - true) > 0.05 else ":")
+    ax.axvline(true, color="k", lw=1, ls="--")
     ax.set_ylim(0, ax.get_ylim()[1] * 1.75)                               # место под подписи
-    ax.set_xlabel("оценка (настоящая ценность — 0)", fontsize=12); ax.set_yticks([])
+    ax.set_xlabel(f"что попадает в цель (настоящая ценность — {true:g})", fontsize=12); ax.set_yticks([])
     ax.tick_params(labelsize=11); ax.legend(loc="upper left", fontsize=11.5, framealpha=0.95)
     ax.set_title(title, fontsize=13)
     return ax
-
 
 def plot_lander_returns(returns, ax=None, title="", window=25):
     """Посадка лунного модуля: сумма наград по эпизодам обучения (тонкая линия) и среднее за window эпизодов."""
