@@ -8,12 +8,17 @@
     greedy_action(qnet, s)            действие с наибольшим Q
     train_lander(seed, episodes=600, lr=1e-3, batch=64, tau=0.01, eps_steps=20_000, double=False)
         возвращает (суммы наград по эпизодам, сеть); double=True — цель Double DQN (одна изменённая строка)
+    test_lander(qnet, episodes=20)    суммы наград на новых эпизодах без случайных действий — массив из episodes чисел
+    load_lander(kind, seed=None)      сохранённые результаты этих же вызовов train_lander и test_lander из lander_results.npz:
+                                      kind — "dqn" или "double"; возвращает (суммы наград по эпизодам обучения, суммы на 20 новых
+                                      эпизодах) для запуска seed, а без seed — для всех трёх запусков (массивы «запуски × …»)
     play_lander(qnet, seed=0)         один эпизод без случайных действий: (кадры, сумма наград)
 
 Состояние: x, y, скорость по x и по y, угол, угловая скорость, касание левой и правой опоры (0 или 1).
 Действия: 0 — ничего, 1 — левый двигатель, 2 — главный, 3 — правый.
 """
 from collections import deque
+from pathlib import Path
 
 import gymnasium as gym
 import numpy as np
@@ -74,6 +79,25 @@ def train_lander(seed, episodes=600, lr=1e-3, batch=64, tau=0.01, eps_steps=20_0
         if log and (episode + 1) % 25 == 0:
             log(episode + 1, step, float(np.mean(returns[-25:])))
     return np.array(returns), qnet
+
+
+def test_lander(qnet, episodes=20):
+    env, totals = make_lander(), []
+    for k in range(episodes):
+        s, _ = env.reset(seed=100_000 + k)
+        total, done = 0.0, False
+        while not done:
+            s, r, terminated, truncated, _ = env.step(greedy_action(qnet, s))
+            total += r
+            done = terminated or truncated
+        totals.append(total)
+    return np.array(totals)
+
+
+def load_lander(kind, seed=None):
+    data = np.load(Path(__file__).with_name("lander_results.npz"))
+    returns, tests = data[f"{kind}_returns"], data[f"{kind}_tests"]
+    return (returns, tests) if seed is None else (returns[seed], tests[seed])
 
 
 def play_lander(qnet, seed=0):
