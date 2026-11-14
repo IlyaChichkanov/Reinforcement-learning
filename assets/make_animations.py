@@ -649,36 +649,30 @@ def chase_target(gamma=0.9, alpha=0.1, steps=12):
 ALL.update({"chase_target": chase_target})
 
 
-def _lander_trained(seed=0, episodes=600):
-    """Обученная DQN для лунного модуля; обучение ~6 минут, поэтому результат кладётся во временный файл."""
+def _lander_trained(seed=0, episodes=600, double=False):
+    """Обученная DQN (или Double DQN) для лунного модуля; обучение ~6 минут, поэтому результат кладётся во временный файл."""
     import pickle, tempfile, torch
     sys.path.insert(0, str(ROOT / "06-dqn" / "lecture")); sys.path.insert(0, str(ROOT / "07-dqn-stability" / "lecture"))
     from lander import make_lander_net, train_lander
-    cache = Path(tempfile.gettempdir()) / f"rl_lander_seed{seed}_{episodes}.pkl"
+    cache = Path(tempfile.gettempdir()) / f"rl_lander_seed{seed}_{episodes}{'_double' if double else ''}.pkl"
     if cache.exists():
         returns, weights = pickle.load(open(cache, "rb"))
         net = make_lander_net(seed); net.load_state_dict(weights)
         return returns, net
     torch.set_num_threads(1)
-    returns, net = train_lander(seed, episodes=episodes,
-                                log=lambda ep, step, avg: print(f"  эпизод {ep}, шагов {step}, среднее за 25: {avg:.0f}"))
+    returns, net = train_lander(seed, episodes=episodes, double=double,
+                                log=lambda ep, step, avg: print(f"  эпизод {ep}, шагов {step}, среднее за 25: {avg:.0f}", flush=True))
     pickle.dump((returns, net.state_dict()), open(cache, "wb"))
     return returns, net
 
 
-def lander(seed=0, episodes=600, episode_seed=9, every=3):
-    """Лекция 7: DQN сажает лунный модуль. GIF «до обучения / после», кривая обучения и кадр с подписями (PNG)."""
+def lander(seed=0, episodes=600, episode_seed=9, every=5):
+    """Лекция 7: DQN сажает лунный модуль. GIF «до обучения / после» и кадр с подписями (PNG)."""
     import torch
     returns, net = _lander_trained(seed, episodes)
-    from lander import make_lander, make_lander_net, greedy_action, play_lander
-    from dqn7_plots import draw_lander_scene, plot_lander_returns
-    # проверка: 20 новых эпизодов без случайных действий
-    env, totals = make_lander(), []
-    for k in range(20):
-        s, _ = env.reset(seed=100_000 + k); total, done = 0.0, False
-        while not done:
-            s, r, terminated, truncated, _ = env.step(greedy_action(net, s)); total += r; done = terminated or truncated
-        totals.append(total)
+    from lander import make_lander_net, play_lander, test_lander
+    from dqn7_plots import draw_lander_scene
+    totals = test_lander(net, episodes=20)                # 20 новых эпизодов без случайных действий
     print(f"обучение: первые 50 эпизодов {returns[:50].mean():.0f}, последние 50 — {returns[-50:].mean():.0f}")
     print(f"проверка на 20 новых эпизодах: среднее {np.mean(totals):.0f}, не меньше 200 — в {sum(t >= 200 for t in totals)} из 20")
     # картинки
@@ -691,8 +685,6 @@ def lander(seed=0, episodes=600, episode_seed=9, every=3):
     scene = min(after, key=lambda frame: abs(height(frame) - 130))        # кадр, где модуль в верхней трети
     fig, ax = plt.subplots(figsize=(9, 6)); draw_lander_scene(scene, ax=ax); fig.tight_layout(pad=0.2)
     fig.savefig(ROOT / "assets" / "lander_scene.png", dpi=100); plt.close(fig)
-    ax = plot_lander_returns(returns, title="DQN учится сажать модуль: сумма наград по эпизодам")
-    ax.figure.tight_layout(); ax.figure.savefig(ROOT / "assets" / "lander_learning.png", dpi=100); plt.close(ax.figure)
     # анимация
     steps = list(range(0, max(len(before), len(after)), every)) + [max(len(before), len(after)) - 1] * 8
     fig, axes = plt.subplots(1, 2, figsize=(10, 3.75))
@@ -707,11 +699,31 @@ def lander(seed=0, episodes=600, episode_seed=9, every=3):
                          color=(C_ACCENT if total < 0 else C_ENV) if done else "k", weight="bold" if done else "normal")
         fig.tight_layout(pad=0.4)
 
-    _save(FuncAnimation(fig, frame, frames=len(steps), interval=60), "lander", fps=14)
+    _save(FuncAnimation(fig, frame, frames=len(steps), interval=100), "lander", fps=9)
     plt.close(fig)
 
 
 ALL.update({"lander": lander})
+
+
+def lander_results(seeds=(0, 1, 2), episodes=600):
+    """Лекция 7: результаты обучения DQN и Double DQN на лунном модуле — файл lander_results.npz рядом с lander.py.
+    Ноутбук читает его, когда TRAIN_LANDER = False. Шесть обучений по ~6 минут; готовые берутся из временных файлов."""
+    saved = {}
+    for kind, double in (("dqn", False), ("double", True)):
+        runs = [_lander_trained(seed, episodes, double) for seed in seeds]
+        from lander import test_lander
+        saved[f"{kind}_returns"] = np.array([returns for returns, _ in runs], dtype=np.float32)
+        saved[f"{kind}_tests"] = np.array([test_lander(net, episodes=20) for _, net in runs], dtype=np.float32)
+        tests = saved[f"{kind}_tests"]
+        print(f"{kind:7s} последние 50 эпизодов обучения: {np.round(saved[f'{kind}_returns'][:, -50:].mean(axis=1))};"
+              f" на 20 новых эпизодах: среднее {np.round(tests.mean(axis=1))}, не меньше 200 — {(tests >= 200).sum(axis=1)} из 20")
+    path = ROOT / "07-dqn-stability" / "lecture" / "lander_results.npz"
+    np.savez_compressed(path, **saved)
+    print(f"saved {path.relative_to(ROOT)}  {path.stat().st_size / 1024:.0f} KB")
+
+
+ALL.update({"lander_results": lander_results})
 
 if __name__ == "__main__":
     names = sys.argv[1:] or list(ALL)

@@ -71,7 +71,8 @@ def main() -> int:
                     missing.append(name)
                 continue
             if src is None:
-                missing.append(name)
+                if name not in att:                      # файла нет, но вложение уже встроено — оставляем как есть
+                    missing.append(name)
                 continue
             mime, payload = _encode(src)
             att[name] = {mime: payload}

@@ -1,4 +1,4 @@
-"""Картинки лекции 7: схема обучения Q-сети, смертельная триада, оценка против настоящей суммы наград, DQN на Atari.
+"""Картинки лекции 7: схема обучения Q-сети, смертельная триада, лунный модуль, DQN на Atari.
 
 Читать этот файл не обязательно: всё, что нужно на лекции, показано картинками.
 Рисовальщики принимают ax=None, рисуют и возвращают ax.
@@ -6,16 +6,16 @@
     draw_dqn_scheme(target=False, ax=None)
         схема одного шага обучения: среда → буфер → пачка → оценка и цель → шаг градиента.
         target=False — цель считает сама обучаемая сеть (красная петля); target=True — её медленная копия.
+    plot_length_and_q(lengths, q_start)         две мерки рядом: длина эпизода и оценка старта; словари {вариант: запуски × эпизоды}
+    plot_four_variants(lengths, q_start)        четыре панели «буфер × целевая сеть»
     draw_triad(ax=None)
         три условия — три круга; алгоритмы курса расставлены по областям, в центре — все три условия сразу.
     draw_two_states_scheme(ax=None)             пример «w и 2w»: два состояния, один вес, какие переходы есть в данных
     plot_chase_frame(axes, history, phase, k)   один кадр анимации «оценка тянется к цели» (assets/make_animations.py)
-    plot_estimate_vs_real(q_start, lengths, ax=None, title="", window=10)
-        оценка старта max Q и сумма наград, которую эпизод принёс на самом деле; q_start и lengths —
-        массивы (запуски, эпизоды); рисуется среднее по запускам, завышение закрашено.
-    plot_max_bias(samples, ax=None, title="")
-        гистограммы оценок: samples — словарь {подпись: массив чисел}; у каждой подписана средняя.
+    draw_double_dqn(copy=(12, 9.5), main=(9, 11), true=10)
+        DQN против Double DQN на одном состоянии: кто выбирает действие и кто его оценивает
     plot_lander_returns(returns, ax=None, title="", window=25)   лунный модуль: сумма наград по эпизодам обучения
+    plot_lander_compare(curves, ax=None, title="", window=25)   лунный модуль: несколько вариантов обучения на одной картинке
     draw_lander_scene(frame, ax=None)           кадр LunarLander с подписями
     draw_atari_scheme(ax=None)                  DQN на Atari: четыре кадра → свёрточная сеть → Q для каждой кнопки
 """
@@ -83,6 +83,22 @@ def draw_dqn_scheme(target=False, ax=None):
                 fontsize=12.5, color=cut, weight="bold")
     ax.set_xlim(-0.3, 20.1); ax.set_ylim(0.3, 6.8); ax.axis("off")
     return ax
+
+
+def plot_length_and_q(lengths, q_start):
+    """Две мерки рядом: сколько шагов стоит шест и какова оценка стартового состояния (словари по вариантам)."""
+    from dqn_plots import plot_q_start, plot_runs
+    fig, axes = plt.subplots(1, 2, figsize=(15, 4.2))
+    plot_runs(lengths, ax=axes[0], title="сколько шагов стоит шест")
+    plot_q_start(q_start, ax=axes[1], title="оценка Q стартового состояния")
+    fig.tight_layout()
+    return axes
+
+
+def plot_four_variants(lengths, q_start):
+    """Четыре панели «буфер есть или нет × целевая сеть есть или нет»; в рамке — наибольшая оценка старта по запускам."""
+    from dqn_plots import plot_grid_2x2
+    return plot_grid_2x2(lengths, {name: np.abs(q).max(axis=1) for name, q in q_start.items()})
 
 
 def draw_triad(ax=None):
@@ -156,43 +172,54 @@ def plot_chase_frame(axes, history, phase, k):
     return axes
 
 
-def plot_estimate_vs_real(q_start, lengths, ax=None, title="", window=10, gamma=0.99):
-    """Оценка старта max Q и сумма наград, которую эпизод принёс на самом деле (среднее по запускам)."""
-    if ax is None:
-        _, ax = plt.subplots(figsize=(7, 4.2))
-    kernel = np.ones(window) / window
-    smooth = lambda rows: np.convolve(np.mean(rows, axis=0), kernel, mode="valid")
-    real = (1 - gamma ** np.asarray(lengths, dtype=float)) / (1 - gamma)
-    promised, got = smooth(q_start), smooth(real)
-    episodes = np.arange(window - 1, window - 1 + len(got))
-    ax.fill_between(episodes, got, promised, where=promised > got, color=C_ACCENT, alpha=0.25, label="завышение")
-    ax.plot(episodes, promised, color=C_ACCENT, lw=2.5, label="оценка старта max Q")
-    ax.plot(episodes, got, color=C_ENV, lw=2.5, label="сумма наград эпизода")
-    ax.axhline(1 / (1 - gamma), color=C_GREY, lw=1.2, ls="--")
-    ax.text(episodes[0], 1 / (1 - gamma) + 2, "больше 100 не бывает", fontsize=11, color=C_GREY, va="bottom")
-    ax.set_xlabel("эпизод", fontsize=12); ax.set_ylabel("сумма наград с дисконтом", fontsize=12)
-    ax.tick_params(labelsize=11); ax.grid(alpha=0.3); ax.legend(loc="lower right", fontsize=11)
-    ax.set_title(title, fontsize=13)
-    return ax
+def draw_double_dqn(copy=(12, 9.5), main=(9, 11), true=10):
+    """Чем Double DQN отличается от DQN, на одном состоянии s′ с двумя действиями (← и →).
+    copy — оценки копии сети, main — оценки основной сети, true — настоящая ценность обоих действий.
+    Слева DQN: копия и выбирает действие, и оценивает его. Справа Double DQN: выбирает основная сеть, оценивает копия."""
+    from matplotlib.patches import ConnectionPatch
+    fig, axes = plt.subplots(1, 3, figsize=(15, 5.4), gridspec_kw={"width_ratios": [1, 1, 1], "wspace": 0.35})
+    names = ["←", "→"]
 
+    def bars(ax, values, colour, picked, title):
+        for k, v in enumerate(values):
+            ax.bar(k, v, 0.55, color=colour, alpha=1.0 if k == picked else 0.35,
+                   edgecolor="k" if k == picked else "none", lw=2.5)
+            ax.text(k, v + 0.5, f"{v:g}", ha="center", fontsize=15, weight="bold" if k == picked else "normal", zorder=5,
+                    bbox=dict(facecolor="white", edgecolor="none", pad=1.5))
+        ax.axhline(true, color="k", lw=1.5, ls="--")
+        ax.text(1.45, true, f"настоящая\nценность {true:g}", ha="left", va="center", fontsize=11,
+                bbox=dict(facecolor="white", edgecolor="none", pad=2))
+        ax.set_xticks([0, 1]); ax.set_xticklabels(names, fontsize=18)
+        ax.set_xlim(-0.6, 2.25); ax.set_ylim(0, max(max(copy), max(main)) + 4.2); ax.set_yticks([])
+        for side in ("top", "right", "left"):
+            ax.spines[side].set_visible(False)
+        ax.set_title(title, fontsize=13, color=colour, weight="bold")
 
-def plot_max_bias(samples, ax=None, title=""):
-    """Гистограммы оценок с подписанными средними; настоящая ценность — 0 (пунктир)."""
-    if ax is None:
-        _, ax = plt.subplots(figsize=(11, 4.4))
-    colours = [C_GREY, C_ACCENT, C_ENV]
-    bins = np.linspace(-3.5, 3.5, 57)
-    for (name, values), colour in zip(samples.items(), colours):
-        ax.hist(values, bins=bins, histtype="stepfilled", alpha=0.25, color=colour, density=True)
-        ax.hist(values, bins=bins, histtype="step", lw=2.2, color=colour, density=True,
-                label=f"{name}: в среднем {np.mean(values):+.2f}")
-        ax.axvline(np.mean(values), color=colour, lw=2, ls="-" if abs(np.mean(values)) > 0.05 else ":")
-    ax.axvline(0, color="k", lw=1, ls="--")
-    ax.set_ylim(0, ax.get_ylim()[1] * 1.75)                               # место под подписи
-    ax.set_xlabel("оценка (настоящая ценность — 0)", fontsize=12); ax.set_yticks([])
-    ax.tick_params(labelsize=11); ax.legend(loc="upper left", fontsize=11.5, framealpha=0.95)
-    ax.set_title(title, fontsize=13)
-    return ax
+    top = max(max(copy), max(main)) + 3.6
+    # DQN: копия выбирает и оценивает
+    a_copy = int(np.argmax(copy))
+    bars(axes[0], copy, C_REWARD, a_copy, "оценки копии $Q_{\\bar\\theta}(s', \\cdot)$")
+    axes[0].text(0.82, top, f"① копия выбирает {names[a_copy]}: {copy[a_copy]:g} больше\n② копия же его оценивает: {copy[a_copy]:g}",
+                 ha="center", va="top", fontsize=12.5)
+    # Double DQN: выбирает основная сеть, оценивает копия
+    a_main = int(np.argmax(main))
+    bars(axes[1], main, C_AGENT, a_main, "оценки основной сети $Q_{\\theta}(s', \\cdot)$")
+    axes[1].text(0.82, top, f"① основная сеть выбирает {names[a_main]}:\n{main[a_main]:g} больше", ha="center", va="top", fontsize=12.5)
+    bars(axes[2], copy, C_REWARD, a_main, "оценки копии $Q_{\\bar\\theta}(s', \\cdot)$")
+    axes[2].text(0.82, top, f"② копия оценивает {names[a_main]}: {copy[a_main]:g}", ha="center", va="top", fontsize=12.5)
+    fig.add_artist(ConnectionPatch((a_main + 0.32, main[a_main] * 0.5), (a_main - 0.32, copy[a_main] * 0.5), "data", "data",
+                                   axesA=axes[1], axesB=axes[2], arrowstyle="-|>", mutation_scale=24, lw=2.5, color="k"))
+    # заголовки и итог под панелями
+    gap = lambda v: "ровно настоящая" if v == true else f"на {abs(v - true):g} {'больше' if v > true else 'меньше'} настоящей"
+    left, right = axes[0].get_position(), (axes[1].get_position(), axes[2].get_position())
+    mid = (right[0].x0 + right[1].x1) / 2
+    fig.text((left.x0 + left.x1) / 2, 0.98, "DQN", ha="center", fontsize=17, weight="bold")
+    fig.text(mid, 0.98, "Double DQN", ha="center", fontsize=17, weight="bold")
+    fig.text((left.x0 + left.x1) / 2, 0.0, f"в цель идёт {copy[a_copy]:g} — {gap(copy[a_copy])}", ha="center", fontsize=13,
+             color=C_ACCENT, weight="bold")
+    fig.text(mid, 0.0, f"в цель идёт {copy[a_main]:g} — {gap(copy[a_main])}", ha="center", fontsize=13, color=C_ENV, weight="bold")
+    fig.add_artist(plt.Line2D([(left.x1 + right[0].x0) / 2] * 2, [0.03, 0.97], color=C_GREY, lw=1, ls=":"))
+    return axes
 
 
 def plot_lander_returns(returns, ax=None, title="", window=25):
@@ -210,6 +237,29 @@ def plot_lander_returns(returns, ax=None, title="", window=25):
     ax.set_ylim(max(returns.min(), -500), 330)
     ax.set_xlabel("эпизод обучения", fontsize=12); ax.set_ylabel("сумма наград за эпизод", fontsize=12)
     ax.tick_params(labelsize=11); ax.grid(alpha=0.3); ax.legend(loc="lower right", fontsize=11.5)
+    ax.set_title(title, fontsize=13)
+    return ax
+
+
+def plot_lander_compare(curves, ax=None, title="", window=25):
+    """Лунный модуль: сумма наград по эпизодам для нескольких вариантов обучения.
+    curves — словарь {подпись: массив «запуски × эпизоды»}; тонкие линии — запуски, жирная — среднее по запускам
+    (всё сглажено средним за window эпизодов)."""
+    if ax is None:
+        _, ax = plt.subplots(figsize=(11, 4.4))
+    colours = [C_AGENT, C_ACCENT, C_ENV]
+    kernel = np.ones(window) / window
+    for (name, runs), colour in zip(curves.items(), colours):
+        smooth = np.array([np.convolve(run, kernel, mode="valid") for run in np.asarray(runs, dtype=float)])
+        episodes = np.arange(window, window + smooth.shape[1])
+        for run in smooth:
+            ax.plot(episodes, run, color=colour, lw=1, alpha=0.35)
+        ax.plot(episodes, smooth.mean(axis=0), color=colour, lw=3, label=name)
+    ax.axhline(200, color=C_GREY, lw=1.5, ls="--")
+    ax.text(window, 208, "200 и выше — задача считается решённой", ha="left", va="bottom", fontsize=11.5, color=C_GREY)
+    ax.set_ylim(-250, 320)
+    ax.set_xlabel("эпизод обучения", fontsize=12); ax.set_ylabel(f"сумма наград, среднее за {window} эпизодов", fontsize=12)
+    ax.tick_params(labelsize=11); ax.grid(alpha=0.3); ax.legend(loc="lower right", fontsize=12)
     ax.set_title(title, fontsize=13)
     return ax
 

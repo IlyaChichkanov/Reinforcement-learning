@@ -6,14 +6,19 @@
     make_lander(render=False)         среда; render=True — умеет отдавать кадры (env.render() -> картинка)
     make_lander_net(seed=0)           Q-сеть 8 → 64 → 64 → 4
     greedy_action(qnet, s)            действие с наибольшим Q
-    train_lander(seed, episodes=600, lr=1e-3, batch=64, tau=0.01, eps_steps=20_000)
-        возвращает (суммы наград по эпизодам, сеть)
+    train_lander(seed, episodes=600, lr=1e-3, batch=64, tau=0.01, eps_steps=20_000, double=False)
+        возвращает (суммы наград по эпизодам, сеть); double=True — цель Double DQN (одна изменённая строка)
+    test_lander(qnet, episodes=20)    суммы наград на новых эпизодах без случайных действий — массив из episodes чисел
+    load_lander(kind, seed=None)      сохранённые результаты этих же вызовов train_lander и test_lander из lander_results.npz:
+                                      kind — "dqn" или "double"; возвращает (суммы наград по эпизодам обучения, суммы на 20 новых
+                                      эпизодах) для запуска seed, а без seed — для всех трёх запусков (массивы «запуски × …»)
     play_lander(qnet, seed=0)         один эпизод без случайных действий: (кадры, сумма наград)
 
 Состояние: x, y, скорость по x и по y, угол, угловая скорость, касание левой и правой опоры (0 или 1).
 Действия: 0 — ничего, 1 — левый двигатель, 2 — главный, 3 — правый.
 """
 from collections import deque
+from pathlib import Path
 
 import gymnasium as gym
 import numpy as np
@@ -38,7 +43,7 @@ def greedy_action(qnet, s):
         return int(qnet(torch.as_tensor(s)).argmax())
 
 
-def train_lander(seed, episodes=600, lr=1e-3, batch=64, tau=0.01, eps_steps=20_000, log=None):
+def train_lander(seed, episodes=600, lr=1e-3, batch=64, tau=0.01, eps_steps=20_000, double=False, log=None):
     rng, env, qnet = np.random.default_rng(seed), make_lander(), make_lander_net(seed)
     target_net = make_lander_net(seed)                                 # копия сети, веса θ̄
     opt = torch.optim.Adam(qnet.parameters(), lr=lr)
@@ -56,7 +61,12 @@ def train_lander(seed, episodes=600, lr=1e-3, batch=64, tau=0.01, eps_steps=20_0
             # 2. пачка из 64 случайных переходов
             S, A, R, S2, D = to_tensors([buffer[i] for i in rng.integers(len(buffer), size=batch)])
             # 3. цель считает копия; шаг градиента
-            y = td_targets(target_net, R, S2, D)
+            if double:                                                 # Double DQN: действие выбирает основная сеть,
+                best = qnet(S2).argmax(dim=1)                          # а оценивает его копия
+                with torch.no_grad():
+                    y = R + 0.99 * (1 - D) * q_of(target_net, S2, best)
+            else:
+                y = td_targets(target_net, R, S2, D)
             loss = ((y - q_of(qnet, S, A)) ** 2).mean()
             opt.zero_grad(); loss.backward(); opt.step()
             # 4. копия подтягивается к основной сети на долю τ
@@ -69,6 +79,25 @@ def train_lander(seed, episodes=600, lr=1e-3, batch=64, tau=0.01, eps_steps=20_0
         if log and (episode + 1) % 25 == 0:
             log(episode + 1, step, float(np.mean(returns[-25:])))
     return np.array(returns), qnet
+
+
+def test_lander(qnet, episodes=20):
+    env, totals = make_lander(), []
+    for k in range(episodes):
+        s, _ = env.reset(seed=100_000 + k)
+        total, done = 0.0, False
+        while not done:
+            s, r, terminated, truncated, _ = env.step(greedy_action(qnet, s))
+            total += r
+            done = terminated or truncated
+        totals.append(total)
+    return np.array(totals)
+
+
+def load_lander(kind, seed=None):
+    data = np.load(Path(__file__).with_name("lander_results.npz"))
+    returns, tests = data[f"{kind}_returns"], data[f"{kind}_tests"]
+    return (returns, tests) if seed is None else (returns[seed], tests[seed])
 
 
 def play_lander(qnet, seed=0):
