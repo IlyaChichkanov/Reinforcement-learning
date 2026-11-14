@@ -14,9 +14,8 @@
     plot_chase_frame(axes, history, phase, k)   один кадр анимации «оценка тянется к цели» (assets/make_animations.py)
     draw_double_dqn(copy=(12, 9.5), main=(9, 11), true=10)
         DQN против Double DQN на одном состоянии: кто выбирает действие и кто его оценивает
-    plot_max_bias(samples, true=0.0, ax=None, title="")
-        гистограммы оценок: samples — словарь {подпись: массив чисел}; true — настоящая ценность
     plot_lander_returns(returns, ax=None, title="", window=25)   лунный модуль: сумма наград по эпизодам обучения
+    plot_lander_compare(curves, ax=None, title="", window=25)   лунный модуль: несколько вариантов обучения на одной картинке
     draw_lander_scene(frame, ax=None)           кадр LunarLander с подписями
     draw_atari_scheme(ax=None)                  DQN на Atari: четыре кадра → свёрточная сеть → Q для каждой кнопки
 """
@@ -223,25 +222,6 @@ def draw_double_dqn(copy=(12, 9.5), main=(9, 11), true=10):
     return axes
 
 
-def plot_max_bias(samples, true=0.0, ax=None, title=""):
-    """Гистограммы оценок с подписанными средними; samples — словарь {подпись: массив чисел};
-    true — настоящая ценность (пунктир)."""
-    if ax is None:
-        _, ax = plt.subplots(figsize=(11, 4.4))
-    colours = [C_GREY, C_ACCENT, C_ENV]
-    bins = np.linspace(true - 3.5, true + 3.5, 57)
-    for (name, values), colour in zip(samples.items(), colours):
-        ax.hist(values, bins=bins, histtype="stepfilled", alpha=0.25, color=colour, density=True)
-        ax.hist(values, bins=bins, histtype="step", lw=2.2, color=colour, density=True,
-                label=f"{name}: в среднем {np.mean(values):.2f}")
-        ax.axvline(np.mean(values), color=colour, lw=2, ls="-" if abs(np.mean(values) - true) > 0.05 else ":")
-    ax.axvline(true, color="k", lw=1, ls="--")
-    ax.set_ylim(0, ax.get_ylim()[1] * 1.75)                               # место под подписи
-    ax.set_xlabel(f"что попадает в цель (настоящая ценность — {true:g})", fontsize=12); ax.set_yticks([])
-    ax.tick_params(labelsize=11); ax.legend(loc="upper left", fontsize=11.5, framealpha=0.95)
-    ax.set_title(title, fontsize=13)
-    return ax
-
 def plot_lander_returns(returns, ax=None, title="", window=25):
     """Посадка лунного модуля: сумма наград по эпизодам обучения (тонкая линия) и среднее за window эпизодов."""
     if ax is None:
@@ -257,6 +237,29 @@ def plot_lander_returns(returns, ax=None, title="", window=25):
     ax.set_ylim(max(returns.min(), -500), 330)
     ax.set_xlabel("эпизод обучения", fontsize=12); ax.set_ylabel("сумма наград за эпизод", fontsize=12)
     ax.tick_params(labelsize=11); ax.grid(alpha=0.3); ax.legend(loc="lower right", fontsize=11.5)
+    ax.set_title(title, fontsize=13)
+    return ax
+
+
+def plot_lander_compare(curves, ax=None, title="", window=25):
+    """Лунный модуль: сумма наград по эпизодам для нескольких вариантов обучения.
+    curves — словарь {подпись: массив «запуски × эпизоды»}; тонкие линии — запуски, жирная — среднее по запускам
+    (всё сглажено средним за window эпизодов)."""
+    if ax is None:
+        _, ax = plt.subplots(figsize=(11, 4.4))
+    colours = [C_AGENT, C_ACCENT, C_ENV]
+    kernel = np.ones(window) / window
+    for (name, runs), colour in zip(curves.items(), colours):
+        smooth = np.array([np.convolve(run, kernel, mode="valid") for run in np.asarray(runs, dtype=float)])
+        episodes = np.arange(window, window + smooth.shape[1])
+        for run in smooth:
+            ax.plot(episodes, run, color=colour, lw=1, alpha=0.35)
+        ax.plot(episodes, smooth.mean(axis=0), color=colour, lw=3, label=name)
+    ax.axhline(200, color=C_GREY, lw=1.5, ls="--")
+    ax.text(window, 208, "200 и выше — задача считается решённой", ha="left", va="bottom", fontsize=11.5, color=C_GREY)
+    ax.set_ylim(-250, 320)
+    ax.set_xlabel("эпизод обучения", fontsize=12); ax.set_ylabel(f"сумма наград, среднее за {window} эпизодов", fontsize=12)
+    ax.tick_params(labelsize=11); ax.grid(alpha=0.3); ax.legend(loc="lower right", fontsize=12)
     ax.set_title(title, fontsize=13)
     return ax
 
