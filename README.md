@@ -59,8 +59,8 @@
 <tr>
 <td>8</td>
 <td>13.10</td>
-<td>Deep Policy Gradient (PG)</td>
-<td></td>
+<td>Актор и критик: REINFORCE с критиком и actor-critic на лунном модуле</td>
+<td><a href="08-actor-critic/lecture/lecture.ipynb">лекция</a></td>
 </tr>
 <tr>
 <td>9</td>

@@ -725,6 +725,103 @@ def lander_results(seeds=(0, 1, 2), episodes=600):
 
 ALL.update({"lander_results": lander_results})
 
+# ------------------------------------------------------------------ лекция 8: актор и критик на лунном модуле
+
+AC_KINDS = {"reinforce": "train_reinforce", "critic": "train_critic", "ac": "train_ac"}
+
+
+def _lander_ac_trained(kind, seed):
+    """Лекция 8: одно обучение на лунном модуле (kind — reinforce, critic или ac). Около 3 минут, результат — во временный файл.
+    Возвращает (история «эпизоды × 2», сети: актор и, если есть, критик)."""
+    import pickle, tempfile, torch
+    sys.path.insert(0, str(ROOT / "08-actor-critic" / "lecture"))
+    import ac_train
+    from ac_core import make_net
+    cache = Path(tempfile.gettempdir()) / f"rl_lander_ac_{kind}_{seed}.pkl"
+    if cache.exists():
+        history, weights = pickle.load(open(cache, "rb"))
+        nets = [make_net(4, seed), make_net(1, seed + 1000)][:len(weights)]
+        for net, w in zip(nets, weights):
+            net.load_state_dict(w)
+        return history, nets
+    torch.set_num_threads(1)
+    history, *nets = getattr(ac_train, AC_KINDS[kind])(seed)
+    pickle.dump((history, [net.state_dict() for net in nets]), open(cache, "wb"))
+    return history, nets
+
+
+def lander_ac_results(seeds=10, situation=(0, 1, 250)):
+    """Лекция 8: результаты обучения на лунном модуле — файл lander_ac_results.npz рядом с ac_core.py.
+    Ноутбук читает его, когда TRAIN_LANDER = False. 30 обучений по ~3 минуты; готовые берутся из временных файлов.
+    situation = (запуск REINFORCE, эпизод, шаг) — ситуация для опыта «одна ситуация — четыре действия»."""
+    sys.path.insert(0, str(ROOT / "08-actor-critic" / "lecture"))
+    from ac_core import choose_action, make_lander, measure_actions, play, returns_to_go
+    saved = {"seeds": np.array(seeds)}
+    for kind in AC_KINDS:
+        histories = [_lander_ac_trained(kind, seed)[0] for seed in range(seeds)]
+        for seed, history in enumerate(histories):
+            saved[f"{kind}_history_{seed}"] = np.asarray(history, dtype=np.float32)
+        last = np.array([history[-100:, 1].mean() for history in histories])
+        print(f"{kind:10s} последние 100 эпизодов: {np.round(last)}, среднее {last.mean():.0f}, не меньше 200 — в {(last >= 200).sum()} из {seeds}")
+    # одна ситуация — четыре действия
+    run, episode, t = situation
+    actor = _lander_ac_trained("reinforce", run)[1][0]
+    env, rng = make_lander(), np.random.default_rng(0)
+    G_all = []
+    for k in range(100):                                    # b — средний G_t по шагам 100 эпизодов этой стратегии
+        s, _ = env.reset(seed=50_000 + k)
+        G_all.append(returns_to_go(play(actor, env, s, rng, n=1000)[2]))
+    b = float(np.concatenate(G_all).mean())
+    G, probs = measure_actions(actor, seed=episode, t=t, repeats=300)
+    G, b = np.round(G), float(np.round(b))                  # средние по 300 повторам точнее целого не известны
+    env, rng = make_lander(render=True), np.random.default_rng(episode)
+    s, _ = env.reset(seed=episode)
+    for _ in range(t):
+        s, *_ = env.step(choose_action(actor, s, rng))
+    saved.update(situation_G=G, situation_probs=probs, situation_b=np.array(b), situation_V=np.round(probs @ G),
+                 situation_frame=np.asarray(env.render()), situation_state=np.asarray(s))
+    print(f"ситуация: состояние {np.round(s, 2)}")
+    print(f"ситуация: G по действиям {G}, вероятности {np.round(probs, 2)}, b = {b:.0f}, V = {probs @ G:.1f}")
+    path = ROOT / "08-actor-critic" / "lecture" / "lander_ac_results.npz"
+    np.savez_compressed(path, **saved)
+    print(f"saved {path.relative_to(ROOT)}  {path.stat().st_size / 1024:.0f} KB")
+
+
+def lander_ac(left=("reinforce", 0), right=("ac", 0), episode_seed=100_000, every=8, limit=280):
+    """Лекция 8: один и тот же старт, две обученные стратегии-сети — REINFORCE с числом b и актор-критик. GIF.
+    Показаны первые limit шагов: эпизод, в котором модуль не выключает двигатели, длится все 1000 шагов."""
+    sys.path.insert(0, str(ROOT / "08-actor-critic" / "lecture"))
+    from ac_core import play_frames
+    names = {"reinforce": "REINFORCE", "critic": "с критиком", "ac": "актор-критик"}
+    shown = []
+    for kind, seed in (left, right):
+        frames, total, timeout = play_frames(_lander_ac_trained(kind, seed)[1][0], seed=episode_seed)
+        shown.append((names[kind], frames, total, timeout))
+        print(f"{kind} (запуск {seed}): {len(frames) - 1} шагов, сумма наград {total:.0f}, время вышло: {timeout}")
+    longest = min(limit, max(len(frames) for _, frames, _, _ in shown))
+    steps = list(range(0, longest, every)) + [longest - 1] * 8
+    fig, axes = plt.subplots(1, 2, figsize=(10, 3.75))
+
+    def frame(i):
+        k = steps[i]
+        for ax, (name, frames, total, timeout) in zip(axes, shown):
+            ax.clear(); ax.imshow(frames[min(k, len(frames) - 1)]); ax.axis("off")
+            done = k >= len(frames) - 1
+            if done:
+                title, colour = f"{name}: сумма наград " + f"{total:.0f}".replace("-", "−"), C_ENV if total >= 200 else C_ACCENT
+            elif k == longest - 1 and timeout:
+                title, colour = f"{name}: двигатели работают до шага 1000, сумма " + f"{total:.0f}".replace("-", "−"), C_ACCENT
+            else:
+                title, colour = f"{name}, шаг {k}", "k"
+            ax.set_title(title, fontsize=12.5, color=colour, weight="normal" if colour == "k" else "bold")
+        fig.tight_layout(pad=0.4)
+
+    _save(FuncAnimation(fig, frame, frames=len(steps), interval=100), "lander_ac", fps=9)
+    plt.close(fig)
+
+
+ALL.update({"lander_ac": lander_ac, "lander_ac_results": lander_ac_results})
+
 if __name__ == "__main__":
     names = sys.argv[1:] or list(ALL)
     for n in names:
