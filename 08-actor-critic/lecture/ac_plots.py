@@ -8,6 +8,8 @@
         "tail" — кусок из n шагов, хвост эпизода оценивает критик. Красным выделено то, что изменилось на этом шаге.
     plot_situation(situation, base="b", note=...)
         одна ситуация — четыре действия: кадр и столбики весов. base="b" — вес G − b; base="both" — рядом G − b и G − V(s)
+    plot_returns(rewards, mark=None, gamma=0.99)
+        один эпизод: награды по шагам и G_t по шагам; mark — шаг, для которого показан его «хвост»
     plot_lander_steps(runs, ax=None, title="", window=100)
         кривые обучения: по горизонтали шаги в среде, по вертикали средняя сумма наград за window эпизодов;
         runs — словарь {вариант: список историй «эпизоды × 2»}
@@ -108,6 +110,40 @@ def plot_situation(situation, base="b", note="модуль у самой пов�
     _weight_bars(axes[1], G, b, "вес $G - b$", f"$b = {b:.0f}$ — одно число на все ситуации")
     if base == "both":
         _weight_bars(axes[2], G, V, "вес $G - V(s)$", f"$V(s) = {V:.0f}$ — средний $G$ из этой ситуации")
+    fig.tight_layout()
+    return axes
+
+
+def plot_returns(rewards, mark=None, gamma=0.99):
+    """Один настоящий эпизод: сверху награды по шагам, снизу G_t — сумма наград с шага t до конца с дисконтом.
+    mark — шаг, для которого показано, из чего сложился G_t."""
+    rewards = np.asarray(rewards, dtype=float)
+    G, acc = np.zeros(len(rewards)), 0.0
+    for t in reversed(range(len(rewards))):
+        acc = rewards[t] + gamma * acc; G[t] = acc
+    steps = np.arange(len(rewards))
+    fig, axes = plt.subplots(2, 1, figsize=(12, 5.2), sharex=True, gridspec_kw=dict(height_ratios=[1, 1]))
+    axes[0].bar(steps, rewards, color=C_REWARD, width=1.0)
+    axes[0].axhline(0, color="k", lw=1)
+    axes[0].set_ylabel("награда $r_t$", fontsize=12.5)
+    axes[0].set_title(f"эпизод из {len(rewards)} шагов: модуль сел, +100 на последнем шаге", fontsize=13)
+    axes[1].plot(steps, G, color=C_AGENT, lw=2.5)
+    axes[1].axhline(0, color="k", lw=1)
+    axes[1].set_ylabel("$G_t$", fontsize=14); axes[1].set_xlabel("шаг эпизода $t$", fontsize=12.5)
+    axes[1].set_title("$G_t$ — сумма наград с шага $t$ до конца эпизода, с дисконтом $\\gamma = 0.99$", fontsize=13)
+    if mark is not None:
+        axes[0].axvspan(mark, len(rewards), color=C_AGENT, alpha=0.12)
+        axes[0].text((mark + len(rewards)) / 2, rewards.max() * 0.55, "сумма этих наград (с дисконтом)\nи есть $G_t$",
+                     ha="center", va="center", fontsize=12.5, color=C_AGENT, weight="bold")
+        for ax in axes:
+            ax.axvline(mark, color=C_ACCENT, lw=1.8, ls="--")
+        axes[1].plot([mark], [G[mark]], marker="o", ms=9, color=C_ACCENT)
+        axes[1].annotate(f"шаг {mark}:  $G_t$ = {G[mark]:.0f}", xy=(mark, G[mark]), xytext=(mark + len(rewards) * 0.05, G.min() * 0.35),
+                         fontsize=13, color=C_ACCENT, weight="bold", va="center",
+                         bbox=dict(boxstyle="round,pad=0.3", facecolor="white", edgecolor="none"),
+                         arrowprops=dict(arrowstyle="-|>", color=C_ACCENT, lw=1.8))
+    for ax in axes:
+        ax.tick_params(labelsize=11); ax.grid(alpha=0.3)
     fig.tight_layout()
     return axes
 

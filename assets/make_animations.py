@@ -750,10 +750,49 @@ def _lander_ac_trained(kind, seed):
     return history, nets
 
 
-def lander_ac_results(seeds=10, situation=(0, 1, 250)):
+def _dqn_steps(seed, episodes=600):
+    """Лекция 8, раздел 4: тот же train_lander лекции 7, но со счётчиком шагов в среде (обучение ~6 минут).
+    Возвращает массив «эпизоды × 2»: (сколько шагов в среде сделано к концу эпизода, сумма наград эпизода)."""
+    import pickle, tempfile, torch
+    import gymnasium as gym
+    sys.path.insert(0, str(ROOT / "06-dqn" / "lecture")); sys.path.insert(0, str(ROOT / "07-dqn-stability" / "lecture"))
+    cache = Path(tempfile.gettempdir()) / f"rl_lander_dqn_steps_{seed}_{episodes}.pkl"
+    if cache.exists():
+        return pickle.load(open(cache, "rb"))
+    import lander
+    torch.set_num_threads(1)
+    steps = []
+
+    class Counter(gym.Wrapper):                                  # считает шаги в среде, больше ничего не меняет
+        def __init__(self, env):
+            super().__init__(env); self.n = 0
+
+        def step(self, action):
+            self.n += 1
+            out = self.env.step(action)
+            if out[2] or out[3]:
+                steps.append(self.n)
+            return out
+
+    make = lander.make_lander
+    lander.make_lander = lambda render=False: Counter(make(render))
+    try:
+        returns, _ = lander.train_lander(seed, episodes=episodes)
+    finally:
+        lander.make_lander = make
+    saved = np.load(ROOT / "07-dqn-stability" / "lecture" / "lander_results.npz")["dqn_returns"][seed]
+    assert np.allclose(returns, saved, atol=1e-2), "награды разошлись с сохранёнными результатами лекции 7"
+    history = np.stack([np.array(steps, dtype=np.float32), returns.astype(np.float32)], axis=1)
+    pickle.dump(history, open(cache, "wb"))
+    return history
+
+
+def lander_ac_results(seeds=10, situation=(0, 1, 250), dqn_seeds=3, episode_run=1):
     """Лекция 8: результаты обучения на лунном модуле — файл lander_ac_results.npz рядом с ac_core.py.
     Ноутбук читает его, когда TRAIN_LANDER = False. 30 обучений по ~3 минуты; готовые берутся из временных файлов.
-    situation = (запуск REINFORCE, эпизод, шаг) — ситуация для опыта «одна ситуация — четыре действия»."""
+    situation = (запуск REINFORCE, эпизод, шаг) — ситуация для опыта «одна ситуация — четыре действия».
+    dqn_seeds — сколько запусков DQN лекции 7 пересчитать со счётчиком шагов (для сравнения в разделе 4);
+    episode_run — запуск REINFORCE, эпизодом которого напоминаем в разделе 1, что такое G_t."""
     sys.path.insert(0, str(ROOT / "08-actor-critic" / "lecture"))
     from ac_core import choose_action, make_lander, measure_actions, play, returns_to_go
     saved = {"seeds": np.array(seeds)}
@@ -763,6 +802,8 @@ def lander_ac_results(seeds=10, situation=(0, 1, 250)):
             saved[f"{kind}_history_{seed}"] = np.asarray(history, dtype=np.float32)
         last = np.array([history[-100:, 1].mean() for history in histories])
         print(f"{kind:10s} последние 100 эпизодов: {np.round(last)}, среднее {last.mean():.0f}, не меньше 200 — в {(last >= 200).sum()} из {seeds}")
+    for seed in range(dqn_seeds):                           # DQN лекции 7: те же запуски, со счётчиком шагов в среде
+        saved[f"dqn_history_{seed}"] = _dqn_steps(seed)
     # одна ситуация — четыре действия
     run, episode, t = situation
     actor = _lander_ac_trained("reinforce", run)[1][0]
@@ -772,16 +813,27 @@ def lander_ac_results(seeds=10, situation=(0, 1, 250)):
         s, _ = env.reset(seed=50_000 + k)
         G_all.append(returns_to_go(play(actor, env, s, rng, n=1000)[2]))
     b = float(np.concatenate(G_all).mean())
-    G, probs = measure_actions(actor, seed=episode, t=t, repeats=300)
-    G, b = np.round(G), float(np.round(b))                  # средние по 300 повторам точнее целого не известны
+    G, probs, value = measure_actions(actor, seed=episode, t=t, repeats=300)
+    G, b, value = np.round(G), float(np.round(b)), float(np.round(value))   # средние по 300 повторам точнее целого не известны
     env, rng = make_lander(render=True), np.random.default_rng(episode)
     s, _ = env.reset(seed=episode)
     for _ in range(t):
         s, *_ = env.step(choose_action(actor, s, rng))
-    saved.update(situation_G=G, situation_probs=probs, situation_b=np.array(b), situation_V=np.round(probs @ G),
+    saved.update(situation_G=G, situation_probs=probs, situation_b=np.array(b), situation_V=np.array(value),
                  situation_frame=np.asarray(env.render()), situation_state=np.asarray(s))
     print(f"ситуация: состояние {np.round(s, 2)}")
-    print(f"ситуация: G по действиям {G}, вероятности {np.round(probs, 2)}, b = {b:.0f}, V = {probs @ G:.1f}")
+    print(f"ситуация: G по действиям {G}, b = {b:.0f}, V (300 эпизодов) = {value:.0f};"
+          f" для проверки сумма π(a)·G(a) = {probs @ G:.1f} при вероятностях {np.round(probs, 2)}")
+    # эпизод для напоминания, что такое G_t: настоящая посадка стратегией REINFORCE
+    actor_ep = _lander_ac_trained("reinforce", episode_run)[1][0]      # запуск, где модуль научился садиться
+    env, rng = make_lander(), np.random.default_rng(0)
+    for episode_seed in range(60_000, 60_200):
+        s, _ = env.reset(seed=episode_seed)
+        rewards = play(actor_ep, env, s, rng, n=1000)[2]
+        if 200 <= len(rewards) <= 400 and rewards.sum() >= 200:        # короткий эпизод, который кончился посадкой
+            break
+    saved.update(episode_rewards=rewards.astype(np.float32), episode_seed=np.array(episode_seed))
+    print(f"эпизод для картинки G_t: сид {episode_seed}, {len(rewards)} шагов, сумма наград {rewards.sum():.0f}")
     path = ROOT / "08-actor-critic" / "lecture" / "lander_ac_results.npz"
     np.savez_compressed(path, **saved)
     print(f"saved {path.relative_to(ROOT)}  {path.stat().st_size / 1024:.0f} KB")

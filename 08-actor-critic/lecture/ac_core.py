@@ -14,8 +14,9 @@
 
 Сохранённые результаты (lander_ac_results.npz) — чтобы ноутбук не обучал модуль заново при каждом запуске:
 
-    load_runs(kind)                       истории обучения десяти запусков: kind — "reinforce", "critic" или "ac";
+    load_runs(kind)                       истории обучения по запускам: kind — "reinforce", "critic", "ac" или "dqn" (лекция 7, 3 запуска);
                                           история — массив «эпизоды × 2»: (шагов в среде сделано, сумма наград эпизода)
+    load_episode()                        награды одного настоящего эпизода с посадкой (для картинки G_t)
     load_situation()                      опыт «одна ситуация — четыре действия»: словарь с числами (см. measure_actions)
 
 Обвязка опытов:
@@ -25,7 +26,8 @@
     steps_to_land(history, level=200, window=100)
                                           сколько шагов в среде сделано, когда среднее window эпизодов впервые достигло level
     measure_actions(actor, seed, t, repeats=300)
-                                          средний G после каждого из четырёх действий в одной и той же ситуации
+                                          одна ситуация: средний G после каждого из четырёх действий, вероятности действий
+                                          и V(s) — средний G, если из этой ситуации играет сама стратегия
     play_frames(actor, seed)              один эпизод стратегией-сетью: (кадры, сумма наград, вышло ли время)
 """
 from pathlib import Path
@@ -86,7 +88,12 @@ def log_probs_of(actor, states, actions):
 
 def load_runs(kind):
     data = np.load(RESULTS)
-    return [data[f"{kind}_history_{seed}"].astype(float) for seed in range(int(data["seeds"]))]
+    return [data[name].astype(float) for name in sorted(k for k in data.files if k.startswith(f"{kind}_history_"))]
+
+
+def load_episode():
+    """Награды одного настоящего эпизода с посадкой — для напоминания, что такое G_t."""
+    return np.load(RESULTS)["episode_rewards"].astype(float)
 
 
 def load_situation():
@@ -121,7 +128,8 @@ def print_runs(name, histories):
 def measure_actions(actor, seed, t, repeats=300):
     """Одна и та же ситуация (эпизод seed после t шагов), четыре действия.
     Для каждого действия: делаем его, дальше играем стратегией-сетью до конца эпизода, считаем G; так repeats раз.
-    Возвращает (средний G по действиям — 4 числа, вероятности действий в этой ситуации — 4 числа)."""
+    Ещё repeats раз доигрываем ту же ситуацию самой стратегией — это измерение V(s).
+    Возвращает (средний G по действиям — 4 числа, вероятности действий — 4 числа, V(s) — число)."""
     env, rng = make_lander(), np.random.default_rng(seed)
     s, _ = env.reset(seed=seed)
     prefix = []
@@ -143,7 +151,13 @@ def measure_actions(actor, seed, t, repeats=300):
                 rewards += list(play(actor, env, s, rng, n=1000)[2])
             totals.append(returns_to_go(np.array(rewards))[0])
         means.append(np.mean(totals))
-    return np.array(means), probs
+    totals = []
+    for _ in range(repeats):                                             # V(s): первое действие тоже выбирает стратегия
+        env.reset(seed=seed)
+        for a in prefix:
+            s, *_ = env.step(a)
+        totals.append(returns_to_go(play(actor, env, s, rng, n=1000)[2])[0])
+    return np.array(means), probs, float(np.mean(totals))
 
 
 def play_frames(actor, seed):
