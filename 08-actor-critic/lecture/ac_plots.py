@@ -8,6 +8,8 @@
         "tail" — кусок из n шагов, хвост эпизода оценивает критик. Красным выделено то, что изменилось на этом шаге.
     plot_situation(situation, base="b", note=...)
         одна ситуация — четыре действия: кадр и столбики весов. base="b" — вес G − b; base="both" — рядом G − b и G − V(s)
+    draw_action_kinds(probs, mu=0.35, sigma=0.25, played=0.62)
+        что выдаёт стратегия-сеть: вероятности четырёх кнопок и среднее с разбросом, когда действие это число
     plot_returns(rewards, mark=None, gamma=0.99)
         один эпизод: награды по шагам и G_t по шагам; mark — шаг, для которого показан его «хвост»
     plot_lander_steps(runs, ax=None, title="", window=100)
@@ -144,6 +146,39 @@ def plot_returns(rewards, mark=None, gamma=0.99):
                          arrowprops=dict(arrowstyle="-|>", color=C_ACCENT, lw=1.8))
     for ax in axes:
         ax.tick_params(labelsize=11); ax.grid(alpha=0.3)
+    fig.tight_layout()
+    return axes
+
+
+def draw_action_kinds(probs, mu=0.35, sigma=0.25, played=0.62):
+    """Что выдаёт стратегия-сеть: слева вероятности четырёх кнопок (настоящие числа ситуации из раздела 2),
+    справа — среднее и разброс, когда действие это число (иллюстрация: mu, sigma, played — не из прогона)."""
+    fig, axes = plt.subplots(1, 2, figsize=(13, 3.9))
+    probs = np.asarray(probs, dtype=float)
+    axes[0].bar(range(4), probs, color=C_AGENT, width=0.62)
+    for k, p in enumerate(probs):
+        axes[0].text(k, p + 0.03, f"{100 * p:.0f} %", ha="center", fontsize=13, weight="bold")
+    axes[0].set_xticks(range(4)); axes[0].set_xticklabels(ACTIONS, fontsize=12)
+    axes[0].set_ylim(0, max(probs) * 1.3); axes[0].set_ylabel("вероятность", fontsize=12.5)
+    axes[0].set_title("действие — одна из четырёх кнопок:\nсеть выдаёт их вероятности", fontsize=13)
+    grid = np.linspace(-1, 1, 400)
+    density = np.exp(-((grid - mu) ** 2) / (2 * sigma ** 2))
+    axes[1].plot(grid, density, color=C_ACCENT, lw=2.5)
+    axes[1].fill_between(grid, density, color=C_ACCENT, alpha=0.15)
+    axes[1].axvline(mu, color=C_ACCENT, ls="--", lw=1.6)
+    axes[1].text(mu, 1.06, "среднее $\\mu$", ha="center", fontsize=12.5, color=C_ACCENT)
+    axes[1].annotate("", xy=(mu - sigma, 0.61), xytext=(mu + sigma, 0.61),
+                     arrowprops=dict(arrowstyle="<|-|>", color=C_ACCENT, lw=1.8))
+    axes[1].text(mu, 0.5, "разброс $\\sigma$", ha="center", fontsize=12.5, color=C_ACCENT)
+    axes[1].plot([played], [0], marker="o", ms=11, color=C_AGENT, clip_on=False)
+    axes[1].annotate(f"сыгранное действие:\nтяга {played}", xy=(played, 0.02), xytext=(-0.95, 0.5),
+                     fontsize=12.5, color=C_AGENT, weight="bold", va="center",
+                     arrowprops=dict(arrowstyle="-|>", color=C_AGENT, lw=1.8, connectionstyle="arc3,rad=-0.2"))
+    axes[1].set_xlim(-1, 1); axes[1].set_ylim(0, 1.25); axes[1].set_yticks([])
+    axes[1].set_xlabel("тяга главного двигателя: число от −1 до 1", fontsize=12.5)
+    axes[1].set_title("действие — число:\nсеть выдаёт среднее и разброс", fontsize=13)
+    for ax in axes:
+        ax.tick_params(labelsize=11); ax.grid(axis="y", alpha=0.3)
     fig.tight_layout()
     return axes
 
