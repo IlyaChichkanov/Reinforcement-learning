@@ -282,14 +282,15 @@
 * Ablation по $\lambda$ и числу параллельных сред
 * Теория: показать, что $\mathbb{E}[\delta_t \mid s_t, a_t] = A^\pi(s_t, a_t)$
 
-## Неделя 10 (27.10): TRPO → PPO
+## Неделя 10 (27.10): PPO
 
 ### Лекция
 
-* Проблема выбора шага в policy gradient, monotonic improvement
-* TRPO: KL-ограничение, natural gradient, conjugate gradient (интуиция)
-* PPO: clipped surrogate objective, несколько эпох на батче, почему PPO вытеснил TRPO
-* Практические детали PPO: normalize advantages, value clipping, entropy bonus, «37 implementation details»
+* Что ломается, если пройти по одному куску несколько раз: веса действий посчитаны для старой стратегии
+* Отношение вероятностей $\rho_t = \pi_\theta(a_t \mid s_t) / \pi_{\text{старая}}(a_t \mid s_t)$ как мерка отличия стратегий; TRPO и его KL-ограничение (обзорно)
+* PPO: clipped surrogate objective, почему берётся минимум из двух слагаемых, несколько проходов по куску
+* Непрерывные действия: гауссова стратегия, $\log \pi$ как логарифм плотности
+* Где применяется: роботы, RLHF и GRPO
 
 ### Семинар
 

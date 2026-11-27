@@ -874,6 +874,84 @@ def lander_ac(left=("reinforce", 0), right=("ac", 0), episode_seed=100_000, ever
 
 ALL.update({"lander_ac": lander_ac, "lander_ac_results": lander_ac_results})
 
+# ------------------------------------------------------------------ лекция 9: PPO
+
+PPO_VARIANTS = {"plain1": dict(epochs=1, clip=False),          # один проход по куску, без ограничения
+                "plain10": dict(epochs=10, clip=False),        # десять проходов, без ограничения
+                "ppo": dict(epochs=10, clip=True)}             # десять проходов с клиппингом — это и есть PPO
+
+
+def _ppo_trained(kind, seed):
+    """Лекция 9: одно обучение на лунном модуле кодом лекции (ppo_train.py). Около 3 минут, результат — во временный файл."""
+    import pickle, tempfile, torch
+    sys.path.insert(0, str(ROOT / "09-ppo" / "lecture"))
+    import ppo_train
+    cache = Path(tempfile.gettempdir()) / f"rl_lander_ppo_{kind}_{seed}.pkl"
+    if cache.exists():
+        return pickle.load(open(cache, "rb"))
+    torch.set_num_threads(1)
+    if kind == "cont":
+        history, actor, critic, log_sigma = ppo_train.train_continuous(seed)
+        saved = (history, actor.state_dict(), critic.state_dict(), log_sigma)
+    else:
+        history, actor, critic = ppo_train.train(seed, **PPO_VARIANTS[kind])
+        saved = (history, actor.state_dict(), critic.state_dict())
+    pickle.dump(saved, open(cache, "wb"))
+    return saved
+
+
+def lander_ppo_results(seeds=10):
+    """Лекция 9: файл результатов lander_ppo_results.npz рядом с ppo_core.py — истории 40 обучений
+    (три варианта на дискретном модуле и PPO на непрерывном) и веса сетей лекции 8 для опыта с ρ."""
+    import pickle, tempfile
+    saved = {}
+    for kind in list(PPO_VARIANTS) + ["cont"]:
+        histories = [_ppo_trained(kind, seed)[0] for seed in range(seeds)]
+        for seed, history in enumerate(histories):
+            saved[f"{kind}_history_{seed}"] = np.asarray(history, dtype=np.float32)
+        last = np.array([history[-100:, 1].mean() for history in histories])
+        print(f"{kind:8s} последние 100 эпизодов: среднее {last.mean():.0f}, по запускам {np.round(np.sort(last))},"
+              f" не меньше 200 — в {(last >= 200).sum()} из {seeds}")
+    # стратегия-сеть и критик прошлой лекции: с них начинается опыт «несколько проходов по куску»
+    ac_cache = Path(tempfile.gettempdir()) / "rl_lander_ac_ac_0.pkl"
+    weights = pickle.load(open(ac_cache, "rb"))[1]
+    for name, tensor in weights[0].items():
+        saved[f"actor_{name}"] = tensor.numpy()
+    for name, tensor in weights[1].items():
+        saved[f"critic_{name}"] = tensor.numpy()
+    path = ROOT / "09-ppo" / "lecture" / "lander_ppo_results.npz"
+    np.savez_compressed(path, **saved)
+    print(f"saved {path.relative_to(ROOT)}  {path.stat().st_size / 1024:.0f} KB")
+
+
+def lander_ppo(seed=0, episode_seed=100_000, every=6, limit=360):
+    """Лекция 9: посадка непрерывного модуля стратегией PPO (действие — два числа). GIF."""
+    import torch
+    sys.path.insert(0, str(ROOT / "09-ppo" / "lecture"))
+    from ppo_core import make_net, play_frames
+    history, actor_state, critic_state, log_sigma = _ppo_trained("cont", seed)
+    actor = make_net(2, seed); actor.load_state_dict(actor_state)
+    frames, total, timeout = play_frames(actor, seed=episode_seed, log_sigma=log_sigma)
+    print(f"непрерывный модуль (запуск {seed}): {len(frames) - 1} шагов, сумма наград {total:.0f}, время вышло: {timeout}")
+    steps = list(range(0, min(limit, len(frames)), every)) + [min(limit, len(frames)) - 1] * 8
+    fig, ax = plt.subplots(figsize=(5.4, 3.9))
+
+    def frame(i):
+        k = steps[i]
+        ax.clear(); ax.imshow(frames[min(k, len(frames) - 1)]); ax.axis("off")
+        done = k >= len(frames) - 1
+        title = (f"PPO, непрерывные действия: сумма наград " + f"{total:.0f}".replace("-", "−") if done
+                 else f"PPO, непрерывные действия, шаг {k}")
+        ax.set_title(title, fontsize=12.5, color=(C_ENV if total >= 200 else C_ACCENT) if done else "k",
+                     weight="bold" if done else "normal")
+        fig.tight_layout(pad=0.4)
+
+    _save(FuncAnimation(fig, frame, frames=len(steps), interval=100), "lander_ppo", fps=9)
+    plt.close(fig)
+
+
+ALL.update({"lander_ppo_results": lander_ppo_results, "lander_ppo": lander_ppo})
+
 if __name__ == "__main__":
     names = sys.argv[1:] or list(ALL)
     for n in names:
