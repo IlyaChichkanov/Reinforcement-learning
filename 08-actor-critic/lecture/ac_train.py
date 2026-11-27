@@ -44,7 +44,7 @@ def train_critic(seed, steps=STEPS):
         states, actions, rewards, *_ = play(actor, env, s, rng, n=1000)
         G = torch.as_tensor(returns_to_go(rewards), dtype=torch.float32)
         V = critic(torch.as_tensor(states)).squeeze(1)                     # ← новое: V(s_t) для каждого шага
-        weights = (G - V).detach()                                         # ← новое: вместо G − b; detach — это числа
+        weights = (G - V).detach()                                         # ← новое: вместо G − b; detach — готовые числа
         loss_actor = -(weights * log_probs_of(actor, states, actions)).sum()
         loss_critic = ((G - V) ** 2).sum()                                 # ← новое: учит критика
         loss = loss_actor + loss_critic

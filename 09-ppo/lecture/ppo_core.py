@@ -2,12 +2,12 @@
 
 Среда и сети — те же, что в лекции 8 (`ac_core.py`), поэтому многое просто импортируется: в репозитории этот файл
 лежит рядом с ноутбуком лекции 8, в Colab его скачивает первая ячейка.
-Новое здесь — сбор куска, который запоминает $\\log \\pi$ старой стратегии: без этих чисел отношение не посчитать.
+Новое здесь — сбор куска, который запоминает log π старой стратегии: без этих чисел отношение ρ не посчитать.
 
     make_lander(continuous=False)         среда LunarLander-v3; continuous=True — действие это два числа от −1 до 1
     make_net(n_out, seed)                 сеть 8 → 64 → 64 → n_out (из лекции 8)
-    collect(actor, env, s, rng, n)        кусок до n шагов: состояния, действия, награды, log π старой стратегии,
-                                          следующее состояние, terminated, truncated
+    collect(actor, env, s, rng, n)        кусок до n шагов или до конца эпизода: состояния, действия, награды,
+                                          log π старой стратегии, следующее состояние, terminated, truncated
     returns_to_go(rewards, gamma, tail)   G_t с хвостом (из лекции 8)
     log_probs_of(actor, states, actions)  log π(a_t | s_t) текущей стратегии (из лекции 8)
 
@@ -18,10 +18,11 @@
 
 Сохранённые результаты (lander_ppo_results.npz) — чтобы ноутбук не обучал модуль заново:
 
-    load_runs(kind)                       истории обучения по запускам: kind — "plain", "many", "ppo" или "cont";
+    load_runs(kind)                       истории обучения по запускам: kind — "plain1" (один проход),
+                                          "plain10" (10 проходов без клиппинга), "ppo" или "cont" (непрерывный модуль);
                                           история — массив «эпизоды × 2»: (шагов в среде сделано, сумма наград эпизода)
     load_nets()                           стратегия-сеть и критик, обученные на прошлой лекции (из файла результатов)
-    measure_rho(epochs, clip)             опыт: один кусок, epochs проходов по нему -> ρ каждого шага
+    measure_rho(epochs, clip)             опыт: один кусок (эпизод), epochs проходов по нему -> ρ каждого шага
     print_runs(name, histories)           сводка варианта по запускам
     steps_to_land(history, level, window) сколько шагов в среде сделано, когда среднее window эпизодов впервые достигло level
 """
@@ -109,11 +110,6 @@ def load_runs(kind):
     return [data[name].astype(float) for name in sorted(k for k in data.files if k.startswith(f"{kind}_history_"))]
 
 
-def load_rho(kind):
-    """Измеренные отношения ρ по шагам куска: plain1 — один проход, plain10 — десять, clip10 — десять с клиппингом."""
-    return np.load(RESULTS)[f"rho_{kind}"].astype(float)
-
-
 def print_runs(name, histories):
     """Сводка варианта по запускам: среднее последних 100 эпизодов и сколько шагов ушло до среднего 200."""
     last = np.array([history[-100:, 1].mean() for history in histories])
@@ -137,23 +133,25 @@ def load_nets():
 
 
 def measure_rho(epochs=10, clip=False, eps=0.2, seed=0, n=2048, lr=3e-4, lr_c=1e-3, gamma=0.99):
-    """Опыт раздела 1: взять обученную стратегию, сыграть ею один кусок, сделать по нему epochs проходов
-    и посмотреть, во сколько раз изменилась вероятность каждого сыгранного действия: ρ = π_новая(a|s) / π_старая(a|s)."""
+    """Опыт раздела 1: взять обученную стратегию, сыграть ею один кусок (эпизод), сделать по нему epochs проходов
+    и посмотреть, во сколько раз изменилась вероятность каждого сыгранного действия: ρ = π_новая(a|s) / π_старая(a|s).
+    Шаг обучения тот же, что в train: это ровно первое обновление train, только сети уже обучены."""
     actor, critic = load_nets()                                        # каждый вызов начинает с одних и тех же весов
     rng, env = np.random.default_rng(seed), make_lander()
     opt = torch.optim.Adam([{"params": actor.parameters(), "lr": lr},
                             {"params": critic.parameters(), "lr": lr_c}])
     s, _ = env.reset(seed=seed * 10_000)
-    S, A, R, logp_old, s2, terminated, truncated = collect(actor, env, s, rng, n)
+    states, actions, rewards, logp_old, s2, terminated, truncated = collect(actor, env, s, rng, n)
     tail = 0.0 if terminated else critic(torch.as_tensor(s2)).item()
-    G = torch.as_tensor(returns_to_go(R, gamma, tail=tail), dtype=torch.float32)
-    S, A, logp_old = torch.as_tensor(S), torch.as_tensor(A), torch.as_tensor(logp_old)
-    advantage = (G - critic(S).squeeze(1)).detach()
+    G = torch.as_tensor(returns_to_go(rewards, gamma, tail=tail), dtype=torch.float32)
+    states, actions, logp_old = torch.as_tensor(states), torch.as_tensor(actions), torch.as_tensor(logp_old)
+    advantage = (G - critic(states).squeeze(1)).detach()
     for _ in range(epochs):
-        ratio = torch.exp(log_probs_of(actor, S, A) - logp_old)
-        kept = (torch.min(ratio * advantage, ratio.clamp(1 - eps, 1 + eps) * advantage) if clip
-                else ratio * advantage)
-        loss = -kept.mean() + ((G - critic(S).squeeze(1)) ** 2).mean()
+        ratio = torch.exp(log_probs_of(actor, states, actions) - logp_old)
+        terms = ratio * advantage
+        if clip:
+            terms = torch.min(terms, ratio.clamp(1 - eps, 1 + eps) * advantage)
+        loss = -terms.mean() + ((G - critic(states).squeeze(1)) ** 2).mean()
         opt.zero_grad(); loss.backward(); opt.step()
     with torch.no_grad():
-        return torch.exp(log_probs_of(actor, S, A) - logp_old).numpy()
+        return torch.exp(log_probs_of(actor, states, actions) - logp_old).numpy()

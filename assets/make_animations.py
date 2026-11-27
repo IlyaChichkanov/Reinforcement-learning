@@ -903,8 +903,14 @@ def _ppo_trained(kind, seed):
 def lander_ppo_results(seeds=10):
     """Лекция 9: файл результатов lander_ppo_results.npz рядом с ppo_core.py — истории 40 обучений
     (три варианта на дискретном модуле и PPO на непрерывном) и веса сетей лекции 8 для опыта с ρ."""
-    import pickle, tempfile
     saved = {}
+    # сначала — сети прошлой лекции: с них начинается опыт «несколько проходов по куску».
+    # Если их нет в кэше, здесь они обучатся (около 3 минут) — до долгого цикла, а не после него.
+    weights = _lander_ac_trained("ac", 0)[1]
+    for name, tensor in weights[0].state_dict().items():
+        saved[f"actor_{name}"] = tensor.numpy()
+    for name, tensor in weights[1].state_dict().items():
+        saved[f"critic_{name}"] = tensor.numpy()
     for kind in list(PPO_VARIANTS) + ["cont"]:
         histories = [_ppo_trained(kind, seed)[0] for seed in range(seeds)]
         for seed, history in enumerate(histories):
@@ -912,19 +918,12 @@ def lander_ppo_results(seeds=10):
         last = np.array([history[-100:, 1].mean() for history in histories])
         print(f"{kind:8s} последние 100 эпизодов: среднее {last.mean():.0f}, по запускам {np.round(np.sort(last))},"
               f" не меньше 200 — в {(last >= 200).sum()} из {seeds}")
-    # стратегия-сеть и критик прошлой лекции: с них начинается опыт «несколько проходов по куску»
-    ac_cache = Path(tempfile.gettempdir()) / "rl_lander_ac_ac_0.pkl"
-    weights = pickle.load(open(ac_cache, "rb"))[1]
-    for name, tensor in weights[0].items():
-        saved[f"actor_{name}"] = tensor.numpy()
-    for name, tensor in weights[1].items():
-        saved[f"critic_{name}"] = tensor.numpy()
     path = ROOT / "09-ppo" / "lecture" / "lander_ppo_results.npz"
     np.savez_compressed(path, **saved)
     print(f"saved {path.relative_to(ROOT)}  {path.stat().st_size / 1024:.0f} KB")
 
 
-def lander_ppo(seed=0, episode_seed=100_000, every=6, limit=360):
+def lander_ppo(seed=0, episode_seed=100_000, every=8):
     """Лекция 9: посадка непрерывного модуля стратегией PPO (действие — два числа). GIF."""
     import torch
     sys.path.insert(0, str(ROOT / "09-ppo" / "lecture"))
@@ -933,7 +932,7 @@ def lander_ppo(seed=0, episode_seed=100_000, every=6, limit=360):
     actor = make_net(2, seed); actor.load_state_dict(actor_state)
     frames, total, timeout = play_frames(actor, seed=episode_seed, log_sigma=log_sigma)
     print(f"непрерывный модуль (запуск {seed}): {len(frames) - 1} шагов, сумма наград {total:.0f}, время вышло: {timeout}")
-    steps = list(range(0, min(limit, len(frames)), every)) + [min(limit, len(frames)) - 1] * 8
+    steps = list(range(0, len(frames), every)) + [len(frames) - 1] * 10      # эпизод целиком, финальный кадр держится
     fig, ax = plt.subplots(figsize=(5.4, 3.9))
 
     def frame(i):

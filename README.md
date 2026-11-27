@@ -71,7 +71,7 @@
 <tr>
 <td>10</td>
 <td>27.10</td>
-<td>PPO: шаг, который не портит стратегию</td>
+<td>PPO: учимся на одном куске несколько раз</td>
 <td><a href="09-ppo/lecture/lecture.ipynb">лекция</a></td>
 </tr>
 <tr>

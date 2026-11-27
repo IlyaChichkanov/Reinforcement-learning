@@ -7,7 +7,8 @@
         насколько изменилась стратегия: по строке на вариант, точка — шаг куска; красные точки вышли за коридор;
         rhos — словарь {подпись: массив ρ}
     draw_clip(eps=0.2, adv=(+1, -1))
-        что видит градиент: слагаемое как функция ρ при положительном и при отрицательном преимуществе, две панели
+        слагаемое шага как функция ρ при положительном и при отрицательном преимуществе, две панели:
+        где линия ровная — шаг сеть не двигает, где наклонная — двигает
     plot_lander_steps(runs, ax=None, title="", window=100)
         кривые обучения по шагам в среде; runs — словарь {вариант: список историй «эпизоды × 2»}
     draw_ppo_scheme(ax=None)
@@ -64,25 +65,30 @@ def plot_rho(rhos, eps=0.2, show=300, seed=0):
 
 
 def draw_clip(eps=0.2, adv=(1.0, -1.0)):
-    """Что видит градиент: слагаемое min(ρA, clip(ρ)A) как функция ρ — при A > 0 и при A < 0."""
+    """Слагаемое шага min(ρA, clip(ρ)A) как функция ρ — при A > 0 и при A < 0.
+    Обрезка есть только с той стороны, куда шагу выгодно уходить; с другой стороны наклон остаётся."""
     fig, axes = plt.subplots(1, 2, figsize=(13, 4.0), sharey=False)
     grid = np.linspace(0, 2.2, 400)
     for ax, A in zip(axes, adv):
         plain = grid * A
         clipped = np.clip(grid, 1 - eps, 1 + eps) * A
         taken = np.minimum(plain, clipped)
-        ax.plot(grid, plain, color=C_GREY, lw=1.8, ls="--", label=r"без клиппинга: $\rho A$")
-        ax.plot(grid, taken, color=C_AGENT, lw=3, label=r"PPO: $\min(\rho A,\ \mathrm{clip}(\rho) A)$")
+        ax.plot(grid, plain, color=C_GREY, lw=1.8, ls="--", label=r"без обрезки: $\rho A$")
+        ax.plot(grid, taken, color=C_AGENT, lw=3, label=r"PPO: меньшее из $\rho A$ и $\mathrm{clip}(\rho) A$")
         ax.axvspan(1 - eps, 1 + eps, color=C_GREY, alpha=0.18)
         ax.axvline(1, color="k", lw=1.2, ls=":")
         flat = (1 + eps, 2.2) if A > 0 else (0, 1 - eps)
         ax.axvspan(*flat, color=C_ACCENT, alpha=0.10)
-        ax.text(np.mean(flat), A * (0.35 if A > 0 else 0.75), "здесь линия ровная:\nградиента нет",
+        ax.text(np.mean(flat), A * (0.35 if A > 0 else 1.2), "здесь линия ровная:\nшаг сеть не двигает",
                 ha="center", va="center", fontsize=12, color=C_ACCENT, weight="bold")
+        back = 0.4 if A > 0 else 1.7                                   # сторона, где обрезки нет
+        ax.text(back, back * A + (0.55 if A > 0 else 0.6), "здесь наклон остался:\nшаг тянет обратно",
+                ha="center", va="center", fontsize=11.5, color=C_AGENT)
         ax.set_title(("действие оказалось лучше обычного: $A > 0$" if A > 0 else
                       "действие оказалось хуже обычного: $A < 0$"), fontsize=13)
-        ax.set_xlabel(r"$\rho$", fontsize=13); ax.set_ylabel("слагаемое loss (чем выше, тем лучше)", fontsize=12)
-        ax.tick_params(labelsize=11); ax.grid(alpha=0.3); ax.legend(fontsize=11.5, loc="lower right" if A > 0 else "upper right")
+        ax.set_xlabel(r"$\rho$", fontsize=13); ax.set_ylabel("слагаемое шага (мы его увеличиваем)", fontsize=12)
+        ax.tick_params(labelsize=11); ax.grid(alpha=0.3)
+        ax.legend(fontsize=11.5, loc="upper left" if A > 0 else "lower left")      # не закрывать подпись справа
     fig.tight_layout()
     return axes
 
@@ -103,7 +109,7 @@ def plot_lander_steps(runs, ax=None, title="", window=100):
             ax.plot(grid / 1000, curves[-1], color=colour, lw=1, alpha=0.28)
         ax.plot(grid / 1000, np.mean(curves, axis=0), color=colour, lw=3.2, label=name)
     ax.axhline(200, color=C_GREY, lw=1.5, ls="--")
-    ax.text(0, 208, "200 и выше — модуль сел", ha="left", va="bottom", fontsize=11.5, color=C_GREY)
+    ax.text(0, 208, "средняя награда 200", ha="left", va="bottom", fontsize=11.5, color=C_GREY)
     ax.set_ylim(-300, 300)
     ax.set_xlabel("шагов в среде, тысяч", fontsize=12.5)
     ax.set_ylabel(f"сумма наград за эпизод,\nсреднее за {window} эпизодов", fontsize=12.5)

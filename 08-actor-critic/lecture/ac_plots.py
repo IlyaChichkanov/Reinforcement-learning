@@ -7,7 +7,7 @@
         схема одного обновления. stage: "reinforce" — вес G_t − b, эпизод целиком; "critic" — вместо числа b сеть-критик;
         "tail" — кусок из n шагов, хвост эпизода оценивает критик. Красным выделено то, что изменилось на этом шаге.
     plot_situation(situation, base="b", note=...)
-        одна ситуация — четыре действия: кадр и столбики весов. base="b" — вес G − b; base="both" — рядом G − b и G − V(s)
+        одно состояние — четыре действия: кадр и столбики весов. base="b" — вес G − b; base="both" — рядом G − b и G − V(s)
     draw_action_kinds(probs, mu=0.35, sigma=0.25, played=0.62)
         что выдаёт стратегия-сеть: вероятности четырёх кнопок и среднее с разбросом, когда действие это число
     plot_returns(rewards, mark=None, gamma=0.99)
@@ -102,16 +102,16 @@ def _weight_bars(ax, G_actions, base, title, base_label):
 
 
 def plot_situation(situation, base="b", note="модуль у самой поверхности"):
-    """Одна ситуация — четыре действия. Слева кадр, справа веса действий: G − b и (при base="both") G − V(s)."""
+    """Одно состояние — четыре действия. Слева кадр, справа веса действий: G − b и (при base="both") G − V(s)."""
     G, b, V = situation["G"], float(situation["b"]), float(situation["V"])
     panels = 3 if base == "both" else 2
     fig, axes = plt.subplots(1, panels, figsize=(5.4 * panels + 0.6, 4.4),
                              gridspec_kw=dict(width_ratios=[1.15] + [1] * (panels - 1)))
     axes[0].imshow(situation["frame"]); axes[0].axis("off")
-    axes[0].set_title("ситуация: " + note, fontsize=13)
-    _weight_bars(axes[1], G, b, "вес $G - b$", f"$b = {b:.0f}$ — одно число на все ситуации")
+    axes[0].set_title("состояние: " + note, fontsize=13)
+    _weight_bars(axes[1], G, b, "вес $G - b$", f"$b = {b:.0f}$ — одно число на все состояния")
     if base == "both":
-        _weight_bars(axes[2], G, V, "вес $G - V(s)$", f"$V(s) = {V:.0f}$ — средний $G$ из этой ситуации")
+        _weight_bars(axes[2], G, V, "вес $G - V(s)$", f"$V(s) = {V:.0f}$ — средний $G$ из этого состояния")
     fig.tight_layout()
     return axes
 
@@ -151,7 +151,7 @@ def plot_returns(rewards, mark=None, gamma=0.99):
 
 
 def draw_action_kinds(probs, mu=0.35, sigma=0.25, played=0.62):
-    """Что выдаёт стратегия-сеть: слева вероятности четырёх кнопок (настоящие числа ситуации из раздела 2),
+    """Что выдаёт стратегия-сеть: слева вероятности четырёх кнопок (настоящие числа состояния из раздела 2),
     справа — среднее и разброс, когда действие это число (иллюстрация: mu, sigma, played — не из прогона)."""
     fig, axes = plt.subplots(1, 2, figsize=(13, 3.9))
     probs = np.asarray(probs, dtype=float)
