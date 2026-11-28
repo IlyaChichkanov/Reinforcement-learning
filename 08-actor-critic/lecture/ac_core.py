@@ -9,7 +9,7 @@
     play(actor, env, s, rng, n)           до n шагов стратегией-сетью из состояния s (раньше — если эпизод закончился);
                                           возвращает (состояния, действия, награды, следующее состояние, terminated, truncated)
     returns_to_go(rewards, gamma=0.99, tail=0.0)
-                                          G_t — награды с шага t до конца куска плюс γ^k · tail; tail — оценка того, что будет дальше
+                                          G_t, посчитанные с конца куска; tail — хвост: оценка того, что будет после куска
     log_probs_of(actor, states, actions)  log π(a_t | s_t) для всех шагов — тензор по шагам
 
 Сохранённые результаты (lander_ac_results.npz) — чтобы ноутбук не обучал модуль заново при каждом запуске:
@@ -17,17 +17,18 @@
     load_runs(kind)                       истории обучения по запускам: kind — "reinforce", "critic", "ac" или "dqn" (лекция 7, 3 запуска);
                                           история — массив «эпизоды × 2»: (шагов в среде сделано, сумма наград эпизода)
     load_episode()                        награды одного настоящего эпизода с посадкой (для картинки G_t)
-    load_situation()                      опыт «одна ситуация — четыре действия»: словарь с числами (см. measure_actions)
+    load_situation()                      опыт «одно состояние — четыре действия»: словарь с числами (см. measure_actions)
 
 Обвязка опытов:
 
-    print_runs(name, histories)           сводка варианта по запускам: среднее последних 100 эпизодов, сколько шагов до среднего 200,
-                                          доля эпизодов, кончившихся по времени
+    print_runs(name, histories)           сводка варианта по запускам, три строки: среднее последних 100 эпизодов;
+                                          в скольких запусках скользящее среднее дошло до 200 и за сколько шагов;
+                                          доля последних эпизодов, кончившихся по времени
     steps_to_land(history, level=200, window=100)
                                           сколько шагов в среде сделано, когда среднее window эпизодов впервые достигло level
     measure_actions(actor, seed, t, repeats=300)
-                                          одна ситуация: средний G после каждого из четырёх действий, вероятности действий
-                                          и V(s) — средний G, если из этой ситуации играет сама стратегия
+                                          одно состояние: средний G после каждого из четырёх действий, вероятности действий
+                                          и V(s) — средний G, если из этого состояния играет сама стратегия
     play_frames(actor, seed)              один эпизод стратегией-сетью: (кадры, сумма наград, вышло ли время)
 """
 from pathlib import Path
@@ -114,26 +115,25 @@ def steps_to_land(history, level=200, window=100):
 def print_runs(name, histories):
     """Сводка одного варианта обучения по запускам; histories — список историй. Печатает три строки."""
     last = np.array([history[-100:, 1].mean() for history in histories])
-    half = [history[history[:, 0] <= 500_000][-100:, 1].mean() for history in histories]
     landed = sorted(round(steps / 1000) for steps in map(steps_to_land, histories) if steps is not None)
     timeouts = sorted(round(100 * (np.diff(history[:, 0], prepend=0)[-100:] >= 1000).mean()) for history in histories)
     print(name)
     print(f"    среднее последних 100 эпизодов: {last.mean():.0f}; по запускам: {' '.join(f'{x:.0f}' for x in np.sort(last))};"
           f" не меньше 200 — в {(last >= 200).sum()} из {len(last)}")
-    print(f"    к 500 тыс. шагов: {np.mean(half):.0f};  до среднего 200 дошли {len(landed)} из {len(last)} запусков"
-          + (f", шагов до этого, тыс.: {' '.join(map(str, landed))}" if landed else ""))
+    print(f"    до среднего 200 дошли {len(landed)} из {len(last)} запусков"
+          + (f", шагов в среде, тыс.: {' '.join(map(str, landed))}" if landed else ""))
     print(f"    время вышло (1000 шагов) в последних 100 эпизодах, % по запускам: {' '.join(map(str, timeouts))}")
 
 
 def measure_actions(actor, seed, t, repeats=300):
-    """Одна и та же ситуация (эпизод seed после t шагов), четыре действия.
+    """Одно и то же состояние (эпизод seed после t шагов), четыре действия.
     Для каждого действия: делаем его, дальше играем стратегией-сетью до конца эпизода, считаем G; так repeats раз.
-    Ещё repeats раз доигрываем ту же ситуацию самой стратегией — это измерение V(s).
+    Ещё repeats раз доигрываем эпизод из того же состояния самой стратегией — это измерение V(s).
     Возвращает (средний G по действиям — 4 числа, вероятности действий — 4 числа, V(s) — число)."""
     env, rng = make_lander(), np.random.default_rng(seed)
     s, _ = env.reset(seed=seed)
     prefix = []
-    for _ in range(t):                                                   # как модуль попал в эту ситуацию
+    for _ in range(t):                                                   # как модуль попал в это состояние
         a = choose_action(actor, s, rng)
         s, *_ = env.step(a); prefix.append(a)
     with torch.no_grad():

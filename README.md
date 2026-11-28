@@ -71,8 +71,8 @@
 <tr>
 <td>10</td>
 <td>27.10</td>
-<td>TRPO → PPO</td>
-<td></td>
+<td>PPO: учимся на одном куске несколько раз</td>
+<td><a href="09-ppo/lecture/lecture.ipynb">лекция</a></td>
 </tr>
 <tr>
 <td>11</td>
